@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# 80-docker-lock-config
+#
+# Functions defined in:
+# docker-config.sh
+#
+#
+dc_lock_config

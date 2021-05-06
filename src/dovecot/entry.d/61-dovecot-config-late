@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# 61-dovecot-config-late
+#
+# Functions defined in:
+# 10-dovecot-common
+#
+#
+
+#
+# Run
+#
+if dc_is_unlocked; then
+	dovecot_activate_tls_cert
+fi

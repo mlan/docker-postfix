@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# 30-postfix-migrate
+#
+# Try to make configs compatible with new version if MIGRATE_CONFIG is defined.
+# Set MIGRATE_CONFIG=1 2 3 to list of fixes or MIGRATE_CONFIG=all to attempt all fixes.
+#
+postfix_apply_migrate_fixes() {
+	local applied
+	if [ -n "$MIGRATE_CONFIG" ]; then
+		for fix in ${MIGRATE_CONFIG/all/}; do # list all fixes here
+		case $fix in
+		*) fix= ;;
+		esac
+		if [ -n "$fix" ]; then
+			applied="$applied $fix"
+		fi
+		done
+		if [ -n "$applied" ]; then
+			dc_log 5 "Applied fixes;$applied to configuration since MIGRATE_CONFIG=$MIGRATE_CONFIG"
+		fi
+	fi
+}
+
+postfix_notify_compat_issues() {
+	local compat_bdb="$(postconf -n | grep -E 'hash:|btree:' | tr -d ' ')"
+	for issue in $compat_bdb; do
+		dc_log 4 "[postfix] Incompatible hash|btree, use FORCE_CONFIG to migrate to lmdb: $issue"
+	done
+}
+
+#
+# run
+#
+postfix_apply_migrate_fixes
+postfix_notify_compat_issues

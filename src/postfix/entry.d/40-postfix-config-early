@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# 40-postfix-config-early
+#
+# Functions defined in:
+# 10-postfix-common
+#
+#
+
+#
+# Run early.
+#
+dc_prune_pidfiles /run $DOCKER_SPOOL_DIR/pid
+
+if dc_is_unlocked; then
+	postfix_default_domains
+	postfix_install_files
+fi

@@ -1,0 +1,141 @@
+version: '3'
+
+services:
+  app:
+    image: mlan/kopano
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:8008:80"    # WebApp & EAS (alt. HTTP)
+      - "127.0.0.1:143:143"    # IMAP (not needed if all devices can use EAS)
+      - "127.0.0.1:110:110"    # POP3 (not needed if all devices can use EAS)
+      - "127.0.0.1:8080:8080"  # ICAL (not needed if all devices can use EAS)
+      - "127.0.0.1:993:993"    # IMAPS (not needed if all devices can use EAS)
+      - "127.0.0.1:995:995"    # POP3S (not needed if all devices can use EAS)
+      - "127.0.0.1:8443:8443"  # ICALS (not needed if all devices can use EAS)
+    depends_on:
+      - auth
+      - db
+      - mta
+    environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
+      - USER_PLUGIN=ldap
+      - LDAP_URI=ldap://auth:389/
+      - MYSQL_HOST=db
+      - SMTP_SERVER=mta
+      - LDAP_SEARCH_BASE=${AD_BASE-dc=example,dc=com}
+      - LDAP_USER_TYPE_ATTRIBUTE_VALUE=${AD_USR_OB-kopano-user}
+      - LDAP_GROUP_TYPE_ATTRIBUTE_VALUE=${AD_GRP_OB-kopano-group}
+      - LDAP_GROUPMEMBERS_ATTRIBUTE_TYPE=dn
+      - LDAP_PROPMAP=
+      - DAGENT_PLUGINS=movetopublicldap
+      - MYSQL_DATABASE=${MYSQL_DATABASE-kopano}
+      - MYSQL_USER=${MYSQL_USER-kopano}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD-secret}
+      - IMAP_LISTEN=*:143                       # also listen to eth0
+      - POP3_LISTEN=*:110                       # also listen to eth0
+      - ICAL_LISTEN=*:8080                      # also listen to eth0
+      - IMAPS_LISTEN=*:993                      # enable TLS
+      - POP3S_LISTEN=*:995                      # enable TLS
+      - ICALS_LISTEN=*:8443                     # enable TLS
+      - PLUGIN_SMIME_USER_DEFAULT_ENABLE_SMIME=true
+      - SYSLOG_LEVEL=${SYSLOG_LEVEL-3}
+      - LOG_LEVEL=${LOG_LEVEL-3}
+    volumes:
+      - app-conf:/etc/kopano
+      - app-atch:/var/lib/kopano/attachments
+      - app-sync:/var/lib/z-push
+      - app-spam:/var/lib/kopano/spamd          # kopano-spamd integration
+      - /etc/localtime:/etc/localtime:ro        # Use host timezone
+    cap_add: # helps debugging by allowing strace
+      - sys_ptrace
+
+  mta:
+    image: mlan/postfix
+    hostname: ${MAIL_SRV-mx}.${MAIL_DOMAIN-example.com}
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:25:25"      # SMTP
+      - "127.0.0.1:465:465"    # SMTPS authentication required
+    depends_on:
+      - auth
+    environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
+      - MESSAGE_SIZE_LIMIT=${MESSAGE_SIZE_LIMIT-25600000}
+      - LDAP_HOST=auth
+      - VIRTUAL_TRANSPORT=lmtp:app:2003
+      - SMTPD_MILTERS=inet:filt:11332
+      - MILTER_DEFAULT_ACTION=accept
+      - SMTP_RELAY_HOSTAUTH=${SMTP_RELAY_HOSTAUTH-}
+      - SMTP_TLS_SECURITY_LEVEL=${SMTP_TLS_SECURITY_LEVEL-}
+      - SMTP_TLS_WRAPPERMODE=${SMTP_TLS_WRAPPERMODE-no}
+      - SMTPD_USE_TLS=yes
+      - LDAP_USER_BASE=ou=${AD_USR_OU-users},${AD_BASE-dc=example,dc=com}
+      - LDAP_QUERY_FILTER_USER=(&(objectclass=${AD_USR_OB-kopano-user})(mail=%s))
+      - LDAP_QUERY_FILTER_ALIAS=(&(objectclass=${AD_USR_OB-kopano-user})(kopanoAliases=%s))
+      - LDAP_QUERY_ATTRS_PASS=uid=user
+      - REGEX_ALIAS=${REGEX_ALIAS-}
+    volumes:
+      - mta:/srv
+      - app-spam:/var/lib/kopano/spamd          # kopano-spamd integration
+      - /etc/localtime:/etc/localtime:ro        # Use host timezone
+    cap_add: # helps debugging by allowing strace
+      - sys_ptrace
+
+  filt:
+    image: mlan/rspamd
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:11334:11334" # HTML rspamd WebGui
+    depends_on:
+      - mta
+    environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
+      - DKIM_SELECTOR=${DKIM_SELECTOR-default}
+      - SYSLOG_LEVEL=${SYSLOG_LEVEL-}
+      - LOG_LEVEL=${LOG_LEVEL-0}
+    volumes:
+      - filt:/srv
+      - app-spam:/var/lib/kopano/spamd          # kopano-spamd integration
+      - /etc/localtime:/etc/localtime:ro        # Use host timezone
+    cap_add: # helps debugging by allowing strace
+      - sys_ptrace
+
+  db:
+    image: mariadb
+    command: ['--log_warnings=1']
+    networks:
+      - backend
+    environment:
+      - LANG=C.UTF-8
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD-secret}
+      - MYSQL_DATABASE=${MYSQL_DATABASE-kopano}
+      - MYSQL_USER=${MYSQL_USER-kopano}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD-secret}
+    volumes:
+      - db:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro        # Use host timezone
+
+  auth:
+    image: mlan/openldap
+    networks:
+      - backend
+    command: --root-cn ${AD_ROOT_CN-admin} --root-pw ${AD_ROOT_PW-secret}
+    environment:
+      - LDAPBASE=${AD_BASE-dc=example,dc=com}
+      - LDAPDEBUG=${AD_DEBUG-parse}
+    volumes:
+      - auth:/srv
+      - /etc/localtime:/etc/localtime:ro        # Use host timezone
+
+networks:
+  backend:
+
+volumes:
+  app-atch:
+  app-conf:
+  app-spam:
+  app-sync:
+  auth:
+  db:
+  mta:
+  filt:

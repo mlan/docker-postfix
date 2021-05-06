@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# 50-dovecot-config
+#
+# Functions defined in:
+# 10-dovecot-common
+#
+#
+
+#
+# Run
+#
+if dc_is_unlocked; then
+	dovecot_setup_postfix
+fi

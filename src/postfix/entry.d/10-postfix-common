@@ -1,0 +1,338 @@
+#!/bin/sh
+#
+# 10-postfix-common
+#
+# Define variables and functions used during container initialization.
+#
+# Defined in Dockerfile:
+# DOCKER_APPL_RUNAS DOCKER_CONF_DIR DOCKER_MAIL_LIB
+#
+DOCKER_DEFAULT_DOMAIN=${DOCKER_DEFAULT_DOMAIN-example.com}
+POSTFIX_VIRT_DOMAIN=${POSTFIX_VIRT_DOMAIN-$DOCKER_CONF_DIR/virt-domains}
+POSTFIX_VIRT_MAILBOX=${POSTFIX_VIRT_MAILBOX-$DOCKER_CONF_DIR/virt-users}
+POSTFIX_VIRT_ALIASES=${POSTFIX_VIRT_ALIASES-$DOCKER_CONF_DIR/virt-aliases}
+POSTFIX_ALIASES=${POSTFIX_ALIASES-$DOCKER_CONF_DIR/aliases}
+POSTFIX_REGEXP_ALIASES=${POSTFIX_REGEXP_ALIASES-$DOCKER_CONF_DIR/regexp-aliases}
+POSTFIX_SASL_PASSWD=${POSTFIX_SASL_PASSWD-$DOCKER_CONF_DIR/sasl-passwords}
+POSTFIX_LDAP_USERS_CF=${POSTFIX_LDAP_USERS_CF-$DOCKER_CONF_DIR/ldap-users.cf}
+POSTFIX_LDAP_ALIAS_CF=${POSTFIX_LDAP_ALIAS_CF-$DOCKER_CONF_DIR/ldap-aliases.cf}
+POSTFIX_LDAP_GROUPS_CF=${POSTFIX_LDAP_GROUPS_CF-$DOCKER_CONF_DIR/ldap-groups.cf}
+POSTFIX_LDAP_EXPAND_CF=${POSTFIX_LDAP_EXPAND_CF-$DOCKER_CONF_DIR/ldap-groups-expand.cf}
+POSTFIX_MYSQL_USERS_CF=${POSTFIX_MYSQL_USERS_CF-$DOCKER_CONF_DIR/mysql-users.cf}
+POSTFIX_MYSQL_ALIAS_CF=${POSTFIX_MYSQL_ALIAS_CF-$DOCKER_CONF_DIR/mysql-aliases.cf}
+LDAP_QUERY_ATTRS_USER=${LDAP_QUERY_ATTRS_USER-mail}
+
+#
+# Apply envvars
+# Some postfix parameters start with a digit and may contain dash "-"
+# and so are not legal variable names
+#
+postfix_apply_envvars() {
+	local env_vars="$(export -p | sed -r 's/export ([^=]+).*/\1/g')"
+	local lcase_var env_val
+	for env_var in $env_vars; do
+		lcase_var="$(echo $env_var | tr '[:upper:]' '[:lower:]')"
+		if [ "$(postconf -H $lcase_var 2>/dev/null)" = "$lcase_var" ]; then
+			env_val="$(eval echo \$$env_var)"
+			dc_log 5 "[postfix] Setting parameter: $lcase_var = $env_val"
+			postconf $lcase_var="$env_val"
+		fi
+	done
+}
+
+#
+# Copy image version of postfix install files to persistent volume if they
+# are different.
+#
+postfix_install_files() {
+	for file in postfix-files dynamicmaps.cf.d; do
+		if [ -e "$DOCKER_DIST_DIR/$file" ] && ! diff -q $DOCKER_CONF_DIR/$file $DOCKER_DIST_DIR/$file >/dev/null; then
+			rm -rf $DOCKER_CONF_DIR/$file
+			cp -rL $DOCKER_DIST_DIR/$file $DOCKER_CONF_DIR
+			dc_log 5 "[postfix] Updating install file: $file"
+		fi
+	done
+}
+
+postfix_backup_file() { mv -f $1 $1.bak 2>/dev/null ;}
+
+#
+# run early to make sure MAIL_DOMAIN is not empty
+#
+postfix_default_domains() {
+	local domains=${MAIL_DOMAIN-$(hostname -d)}
+	if [ -z "$domains" ]; then
+		export MAIL_DOMAIN=$DOCKER_DEFAULT_DOMAIN
+		dc_log 4 "[postfix] No MAIL_DOMAIN, non FQDN HOSTNAME, so using: $MAIL_DOMAIN"
+	fi
+}
+
+#
+# configure domains if we have recipients
+#
+postfix_setup_domains() {
+	local domains=${MAIL_DOMAIN-$(hostname -d)}
+	if [ -n "$domains" ] && ([ -n "$MAIL_BOXES" ] || \
+	([ -n "$LDAP_HOST" ] && [ -n "$LDAP_USER_BASE" ] && [ -n "$LDAP_QUERY_FILTER_USER" ]) || \
+	([ -n "$MYSQL_HOST" ] && [ -n "$MYSQL_DATABASE" ] && [ -n "$MYSQL_QUERY_USER" ])); then
+		dc_log 5 "[postfix] Configuring for domains $domains"
+		if [ $(echo $domains | wc -w) -gt 1 ]; then
+			postfix_backup_file $POSTFIX_VIRT_DOMAIN
+			for domain in $domains; do
+				echo "$domain #domain" >> $POSTFIX_VIRT_DOMAIN
+			done
+			postmap  lmdb:$POSTFIX_VIRT_DOMAIN
+			postconf virtual_mailbox_domains=lmdb:$POSTFIX_VIRT_DOMAIN
+		else
+			postconf mydomain=$domains
+			postconf virtual_mailbox_domains='$mydomain'
+		fi
+	fi
+}
+
+#
+# Set default postfix alias maps
+#
+postfix_default_maps() {
+	postconf alias_maps=
+	postconf alias_database=
+	postconf virtual_lmdb_alias_maps=
+	postconf virtual_ldap_alias_maps=
+	postconf virtual_mysql_alias_maps=
+	postconf virtual_regexp_alias_maps=
+	postconf 'virtual_alias_maps=$virtual_lmdb_alias_maps $virtual_ldap_alias_maps $virtual_mysql_alias_maps $virtual_regexp_alias_maps'
+	postconf virtual_lmdb_mailbox_maps=
+	postconf virtual_ldap_mailbox_maps=
+	postconf virtual_mysql_mailbox_maps=
+	postconf 'virtual_mailbox_maps=$virtual_lmdb_mailbox_maps $virtual_ldap_mailbox_maps $virtual_mysql_mailbox_maps'
+}
+
+#
+# Setup lmdb mailboxes
+# MAIL_BOXES="address address:mailbox"
+# We use virtual, so table format is: address mailbox
+# Postfix need help with creating path root
+#
+postfix_setup_mailbox_lmdb() {
+	local mboxmaps="${1-$MAIL_BOXES}"
+	if [ -n "$mboxmaps" ]; then
+		dc_log 5 "[postfix] Configuring virtual mailboxes."
+		postfix_backup_file $POSTFIX_VIRT_MAILBOX
+		for mboxmap in $mboxmaps; do
+			echo "$mboxmap" | sed '/:/!s/.*/& &/g;s/:/ /g' >> $POSTFIX_VIRT_MAILBOX
+			for mboxbase in $(echo "$mboxmap" | sed '/:/!d;s/^.*://g;/\//!d;s/\/[^/]*\/*$//g'); do
+				mkdir -p ${DOCKER_MAIL_LIB}/${mboxbase}
+				chown -LR ${DOCKER_APPL_RUNAS}: ${DOCKER_MAIL_LIB}
+			done
+		done
+		postmap lmdb:$POSTFIX_VIRT_MAILBOX
+		postconf virtual_lmdb_mailbox_maps=lmdb:$POSTFIX_VIRT_MAILBOX
+	fi
+}
+
+#
+# Setup postfix aliases
+# MAIL_ALIASES="alias:address alias:address,address"
+# We use virtual, so table format is: alias address, address
+#
+postfix_setup_alias_lmdb() {
+	local aliasmaps="${1-$MAIL_ALIASES}"
+	if [ -n "$aliasmaps" ]; then
+		dc_log 5 "[postfix] Configuring virtual aliases."
+		postfix_backup_file $POSTFIX_VIRT_ALIASES
+		for aliasmap in $aliasmaps; do
+			echo "$aliasmap" | sed 's/:/ /g;s/[,]/& /g' >> $POSTFIX_VIRT_ALIASES
+		done
+		postmap lmdb:$POSTFIX_VIRT_ALIASES
+		postconf virtual_lmdb_alias_maps=lmdb:$POSTFIX_VIRT_ALIASES
+	fi
+}
+
+#
+# Allow recipient email address to be rewritten using regexp in REGEX_ALIAS
+#
+postfix_setup_alias_regex() {
+	if [ -n "$REGEX_ALIAS" ]; then
+		dc_log 5 "[postfix] Configuring recipient address rewrite using regexp: $REGEX_ALIAS"
+		echo "$REGEX_ALIAS" > $POSTFIX_REGEXP_ALIASES
+		postmap lmdb:$POSTFIX_REGEXP_ALIASES
+		postconf "virtual_regexp_alias_maps=regexp:$POSTFIX_REGEXP_ALIASES"
+	fi
+}
+
+#
+# Setup SMTP auth
+# SMTP_RELAY_HOSTAUTH="[relay_fqdn]:587 user:password"
+#
+postfix_setup_smtp_auth() {
+	local hostauth=${1-$SMTP_RELAY_HOSTAUTH}
+	local host=${hostauth% *}
+	local auth=${hostauth#* }
+	if [ -n "$host" ]; then
+		dc_log 5 "[postfix] Configuring SMTP relay: $host"
+		postconf -e relayhost=$host
+		if [ -n "$auth" ]; then
+			postconf -e smtp_sasl_auth_enable=yes
+			postconf -e smtp_sasl_password_maps=lmdb:$POSTFIX_SASL_PASSWD
+			postconf -e smtp_sasl_security_options=noanonymous
+			echo "$hostauth" > $POSTFIX_SASL_PASSWD
+			postmap lmdb:$POSTFIX_SASL_PASSWD
+		fi
+	else
+		dc_log 7 "[postfix] No SMTP relay defined."
+	fi
+}
+
+#
+# Setup ldap mailboxes
+#
+postfix_setup_mailbox_ldap() {
+	if ([ -n "$LDAP_HOST" ] && [ -n "$LDAP_USER_BASE" ] && [ -n "$LDAP_QUERY_FILTER_USER" ]); then
+		dc_log 5 "[postfix] Configuring ldap lookup with ldap-host: $LDAP_HOST"
+		_postfix_generate_ldapmap "$LDAP_USER_BASE" "$LDAP_QUERY_ATTRS_USER" "$LDAP_QUERY_FILTER_USER" > $POSTFIX_LDAP_USERS_CF
+		postconf virtual_ldap_mailbox_maps=ldap:$POSTFIX_LDAP_USERS_CF
+		if [ -n "$LDAP_QUERY_FILTER_ALIAS" ]; then
+			_postfix_generate_ldapmap "$LDAP_USER_BASE" "$LDAP_QUERY_ATTRS_USER" "$LDAP_QUERY_FILTER_ALIAS" > $POSTFIX_LDAP_ALIAS_CF
+			if [ -n "$LDAP_GROUP_BASE" -a -n "$LDAP_QUERY_FILTER_GROUP" -a -n "$LDAP_QUERY_FILTER_EXPAND" ]; then
+				_postfix_generate_ldapmap "$LDAP_GROUP_BASE" memberUid "$LDAP_QUERY_FILTER_GROUP" > $POSTFIX_LDAP_GROUPS_CF
+				_postfix_generate_ldapmap "$LDAP_GROUP_BASE" "$LDAP_QUERY_ATTRS_USER" "$LDAP_QUERY_FILTER_EXPAND" > $POSTFIX_LDAP_EXPAND_CF
+				postconf "virtual_ldap_alias_maps=ldap:$POSTFIX_LDAP_ALIAS_CF ldap:$POSTFIX_LDAP_GROUPS_CF ldap:$POSTFIX_LDAP_EXPAND_CF"
+			else
+				postconf "virtual_ldap_alias_maps=ldap:$POSTFIX_LDAP_ALIAS_CF"
+			fi
+		fi
+	fi
+}
+
+_postfix_generate_ldapmap() {
+	local server_host="$LDAP_HOST"
+	local search_base="$1"
+	local result_attribute="$2"
+	local query_filter="$3"
+	local bind_dn="$LDAP_BIND_DN"
+	local bind_pw="$LDAP_BIND_PW"
+	cat <<-!cat
+		server_host = $server_host
+		search_base = $search_base
+		version = 3
+		scope = sub
+		result_attribute = $result_attribute
+		query_filter = $query_filter
+	!cat
+	if [ -n "$bind_dn" ]; then
+	cat <<-!cat
+		bind = yes
+		bind_dn = $bind_dn
+		bind_pw = $bind_pw
+	!cat
+	fi
+}
+
+
+#
+# Setup mysql mailboxes
+#
+postfix_setup_mailbox_mysql() {
+	if ([ -n "$MYSQL_HOST" ] && [ -n "$MYSQL_DATABASE" ]); then
+		if [ -n "$MYSQL_QUERY_USER" ]; then
+			dc_log 5 "[postfix] Configuring mysql mailbox lookup with mysql-host: $MYSQL_HOST"
+			_postfix_generate_mysqlmap "$MYSQL_QUERY_USER" > $POSTFIX_MYSQL_USERS_CF
+			postconf virtual_mysql_mailbox_maps=mysql:$POSTFIX_MYSQL_USERS_CF
+		fi
+		if [ -n "$MYSQL_QUERY_ALIAS" ]; then
+			dc_log 5 "[postfix] Configuring mysql alias lookup with mysql-host: $MYSQL_HOST"
+			_postfix_generate_mysqlmap "$MYSQL_QUERY_ALIAS" > $POSTFIX_MYSQL_ALIAS_CF
+			postconf virtual_mysql_alias_maps=mysql:$POSTFIX_MYSQL_ALIAS_CF
+		fi
+	fi
+}
+
+_postfix_generate_mysqlmap() {
+	local query="$@"
+	local hosts="$MYSQL_HOST"
+	local dbname="$MYSQL_DATABASE"
+	local user="$MYSQL_USER"
+	local password="$MYSQL_PASSWORD"
+	cat <<-!cat
+		hosts = $hosts
+		dbname = $dbname
+		query = $query
+	!cat
+	if [ -n "$user" ]; then
+	cat <<-!cat
+		user = $user
+		password = $password
+	!cat
+	fi
+}
+
+#
+# Setup local mailboxes
+#
+postfix_setup_mailbox_local() {
+	if [ -z "$VIRTUAL_TRANSPORT" ]; then # need local mail boxes
+		dc_log 5 "[postfix] No VIRTUAL_TRANSPORT so arranging local mboxes: $DOCKER_MAIL_LIB"
+		mkdir -p $DOCKER_MAIL_LIB
+		dc_cond_chown $DOCKER_APPL_RUNAS $DOCKER_MAIL_LIB
+		postconf virtual_mailbox_base=$DOCKER_MAIL_LIB
+		postconf virtual_uid_maps=static:$(id -u $DOCKER_APPL_RUNAS)
+		postconf virtual_gid_maps=static:$(id -g $DOCKER_APPL_RUNAS)
+	fi
+}
+
+#
+# Update SMTPD_TLS_CERT_FILE and SMTPD_TLS_KEY_FILE.
+# Variables defined in 30-acme-common
+# DOCKER_APPL_SSL_CERT
+# DOCKER_APPL_SSL_KEY
+#
+postfix_export_tls_cert() {
+	if ([ -f $DOCKER_APPL_SSL_CERT ] && [ -f $DOCKER_APPL_SSL_KEY ]); then
+		export SMTPD_TLS_CERT_FILE=${SMTPD_TLS_CERT_FILE-$DOCKER_APPL_SSL_CERT}
+		export SMTPD_TLS_KEY_FILE=${SMTPD_TLS_KEY_FILE-$DOCKER_APPL_SSL_KEY}
+	fi
+}
+
+#
+# Generate self signed certificate if SMTPD_USE_TLS=yes but no certificates
+# are given.
+#
+postfix_generate_tls_cert() {
+	if ([ -z "$SMTPD_TLS_CERT_FILE" ] && [ -z "$SMTPD_TLS_ECCERT_FILE" ] && \
+		[ -z "$SMTPD_TLS_DCERT_FILE" ] && [ -z "$SMTPD_TLS_CHAIN_FILES" ] && \
+		[ "$SMTPD_USE_TLS" = "yes" ] && dc_is_installed openssl); then
+		dc_log 4 "[postfix] SMTPD_USE_TLS=yes but no certs given, so generating self-signed cert for host: $HOSTNAME"
+		dc_tls_setup_selfsigned_cert $DOCKER_APPL_SSL_CERT $DOCKER_APPL_SSL_KEY
+	fi
+}
+
+#
+# Activate TLS if we have relevant envvars defined.
+#
+postfix_activate_tls_cert() {
+	if ([ -n "$SMTPD_TLS_CERT_FILE" ] || [ -n "$SMTPD_TLS_ECCERT_FILE" ] || \
+		[ -n "$SMTPD_TLS_DCERT_FILE" ] || [ -n "$SMTPD_TLS_CHAIN_FILES" ]); then
+		dc_log 5 "[postfix] Activating incoming tls."
+		postconf -e smtpd_use_tls=yes
+		postconf -e smtpd_tls_security_level=may
+		postconf -e smtpd_tls_auth_only=yes
+	fi
+}
+
+#
+# Optionally generate non-default Postfix SMTP server EDH parameters for improved security.
+# Note, since 2015, 512 bit export ciphers are no longer used this takes a long time.
+# Run this manually once the container is up by:
+# conf postfix_update_dhparam
+#
+postfix_update_dhparam() {
+	local bits=${1-2048}
+	if dc_is_installed openssl; then
+		dc_log 5 "[postfix] Regenerating edh $bits bit parameters."
+		mkdir -p $DOCKER_APPL_SSL_DIR
+		openssl dhparam -out $DOCKER_APPL_SSL_DIR/dh$bits.pem $bits
+		postconf smtpd_tls_dh1024_param_file=$DOCKER_APPL_SSL_DIR/dh$bits.pem
+	else
+		dc_log 4 "[postfix] Cannot regenerate edh since openssl is not installed."
+	fi
+}

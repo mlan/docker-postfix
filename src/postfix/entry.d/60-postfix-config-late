@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# 60-postfix-config-late
+#
+# Functions defined in:
+# docker-config.sh 10-postfix-common
+#
+#
+
+#
+# Run late.
+#
+if dc_is_unlocked; then
+	postfix_setup_domains
+	postfix_default_maps
+	postfix_setup_smtp_auth
+	postfix_setup_mailbox_lmdb
+	postfix_setup_mailbox_ldap
+	postfix_setup_mailbox_mysql
+	postfix_setup_mailbox_local
+	postfix_setup_alias_lmdb
+#	postfix_setup_aliasmap
+	postfix_setup_alias_regex
+	postfix_export_tls_cert
+	postfix_generate_tls_cert
+	postfix_export_tls_cert
+	postfix_activate_tls_cert
+	postfix_apply_envvars
+fi
