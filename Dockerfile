@@ -21,6 +21,7 @@ ENV	SVDIR=/etc/service \
 	DOCKER_SPOOL_DIR=/var/spool/postfix \
 	DOCKER_CONF_DIR=/etc/postfix \
 	DOCKER_DIST_DIR=/etc/postfix.dist \
+	DOCKER_MAIL_LIB=/var/mail \
 	DOCKER_IMAP_DIR=/etc/dovecot \
 	DOCKER_IMAPDIST_DIR=/etc/dovecot.dist \
 	DOCKER_UNLOCK_FILE=/srv/etc/.docker.unlock \
@@ -57,6 +58,7 @@ RUN	source docker-common.sh \
 	$DOCKER_AV_LIB \
 	$DOCKER_CONF_DIR \
 	$DOCKER_IMAP_DIR \
+	$DOCKER_MAIL_LIB \
 	$DOCKER_MILT_DIR \
 	$DOCKER_MILT_LIB \
 	$DOCKER_DB_DIR \
@@ -75,6 +77,7 @@ RUN	source docker-common.sh \
 	"syslogd -nO- -l$SYSLOG_LEVEL $SYSLOG_OPTIONS" \
 	"crond -f -c /etc/crontabs" \
 	"postfix start-fg" \
+	&& chown ${DOCKER_APPL_RUNAS}: ${DOCKER_PERSIST_DIR}$DOCKER_MAIL_LIB \
 	&& mv $DOCKER_CONF_DIR/aliases $DOCKER_CONF_DIR/aliases.dist \
 	&& postconf -e mynetworks_style=subnet \
 	&& echo "This file unlocks the configuration, so it will be deleted after initialization." > $DOCKER_UNLOCK_FILE

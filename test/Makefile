@@ -5,7 +5,7 @@
 
 -include    *.mk
 
-TST_REPO ?= mlan/postfix-amavis
+TST_REPO ?= mlan/postfix
 TST_VER  ?= latest
 _ver      = $(if $(findstring latest,$(1)),$(2),$(2)-$(1))
 
@@ -60,7 +60,7 @@ TST_SBUG ?= 0
 TST_STAG ?= -99
 
 AUT_NAME ?= $(TST_NAME)-auth
-AUT_IMG  ?= mlan/openldap:2
+AUT_IMG  ?= mlan/openldap
 AUT_FQDN ?= $(AUT_NAME).$(AD_DOM)
 AUT_VOL  ?=
 AUT_ENV  ?= $(NET_ENV) \
@@ -203,7 +203,7 @@ variables:
 ps:
 	docker ps -a
 
-test-all: test-up_0 $(addprefix test_,1 2 3 4 5 6 7 8 9)
+test-all: test-up_0 $(addprefix test_,1 2 3 4 5)
 	
 
 test_%: test-up_% test-waitl_% test-logs_% test-mail_% test-down_%
@@ -218,11 +218,6 @@ test-up_0:
 	# run containers see if there are logs and stop.
 	#
 	#
-	docker run -d --name $(SRV_NAME) $(TST_REPO):$(call _ver,$(TST_VER),mini)
-	sleep $(TST_W8L1)
-	docker container logs $(SRV_NAME) | grep 'docker-entrypoint.sh'
-	docker rm -f $(SRV_NAME)
-	sleep $(TST_W8S1)
 	docker run -d --name $(SRV_NAME) $(TST_REPO):$(call _ver,$(TST_VER),base)
 	sleep $(TST_W8L1)
 	docker container logs $(SRV_NAME) | grep 'docker-entrypoint.sh'
@@ -252,10 +247,10 @@ test-up_1: test-up-net
 	#
 	docker run -d $(SRV_ENV) \
 		-e MAIL_BOXES="$(TST_BOX)" -e MAIL_ALIASES="$(TST_ALS)" \
-		$(TST_REPO):$(call _ver,$(TST_VER),mini)
+		$(TST_REPO):$(call _ver,$(TST_VER),base)
 	docker run -d $(CLT_ENV) \
 		-e RELAYHOST=[$(SRV_NAME)] -e MYDESTINATION= \
-		$(TST_REPO):$(call _ver,$(TST_VER),mini)
+		$(TST_REPO):$(call _ver,$(TST_VER),base)
 
 test-up_2: test-up-net test-up-auth_2
 	#
@@ -268,9 +263,9 @@ test-up_2: test-up-net test-up-auth_2
 	#
 	#
 	docker run -d $(SRV_ENV) $(ADLU_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),mini)
+		$(TST_REPO):$(call _ver,$(TST_VER),base)
 	docker run -d $(CLT_ENV) -e RELAYHOST=[$(SRV_NAME)] -e MYDESTINATION= \
-		$(TST_REPO):$(call _ver,$(TST_VER),mini)
+		$(TST_REPO):$(call _ver,$(TST_VER),base)
 
 test-up_3: test-up-net test-up-db_3 acme/acme.json
 	#
@@ -283,9 +278,9 @@ test-up_3: test-up-net test-up-db_3 acme/acme.json
 	#
 	#
 	docker run -d $(SRV_ENV) $(DBLU_ENV) $(TLS_ENV) $(DOVE_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call _ver,$(TST_VER),full)
 	docker run -d $(CLT_ENV) -e RELAYHOST=[$(SRV_NAME)] -e MYDESTINATION= \
-		$(TST_REPO):$(call _ver,$(TST_VER),mini)
+		$(TST_REPO):$(call _ver,$(TST_VER),base)
 
 test-up_4: test-up-net test-up-auth_4 acme/acme.json
 	#
@@ -298,11 +293,11 @@ test-up_4: test-up-net test-up-auth_4 acme/acme.json
 	#
 	#
 	docker run -d $(SRV_ENV) $(ADAL_ENV) $(TLS_ENV) $(DOVE_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call _ver,$(TST_VER),full)
 	docker run -d $(CLT_ENV) $(ADAU_ENV) -e SMTPD_USE_TLS=yes \
 		-e SMTP_RELAY_HOSTAUTH="[$(SRV_NAME)]:587 $(AD_MX_CN):$(AD_MX_PW)" \
 		-e MYDESTINATION= -e SMTP_TLS_SECURITY_LEVEL=encrypt \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call _ver,$(TST_VER),full)
 
 test-up_5: test-up-net acme/acme.json
 	#
@@ -317,78 +312,11 @@ test-up_5: test-up-net acme/acme.json
 	docker run -d $(SRV_ENV) $(ACME_ENV) \
 		-e MAIL_BOXES="$(TST_BOX)" \
 		-e SMTPD_SASL_CLIENTAUTH="$(AD_USR_CN):{plain}$(AD_USR_PW) $(EX_MX_CN):{plain}$(EX_MX_PW)" \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call _ver,$(TST_VER),full)
 	docker run -d $(CLT_ENV) \
 		-e SMTP_RELAY_HOSTAUTH="[$(SRV_NAME)]:587 $(EX_MX_CN):$(EX_MX_PW)" \
 		-e MYDESTINATION= -e SMTP_TLS_SECURITY_LEVEL=encrypt \
-		$(TST_REPO):$(call _ver,$(TST_VER),mini)
-
-test-up_6: test-up-net
-	#
-	#
-	#
-	# test (6) basic milter function and selfsigned tls
-	#
-	# send: curl smtp://clt -> clt smtp://srv -> srv postfix mbox:$(AD_USR_BX)
-	# recv: cat srv mbox:$(AD_USR_BX)
-	#
-	#
-	docker run -d $(SRV_ENV) \
-		-e MAIL_BOXES="$(TST_BOX)" -e SMTPD_USE_TLS=yes \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
-	docker run -d $(CLT_ENV) -e RELAYHOST=[$(SRV_NAME)] \
-		-e MYDESTINATION= -e LOG_LEVEL=$(TST_ALOG) \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
-
-test-up_7: test-down-vol test-up-net
-	#
-	#
-	#
-	# test (7) dkim and multiple domains
-	#
-	# send: curl smtp://clt -> clt smtp://srv -> srv postfix mbox:$(EX_USR_BX)
-	# recv: cat srv mbox:$(EX_USR_BX)
-	#
-	#
-	docker run -d $(SRV_ENV) $(SRVV_ENV) \
-		-e MAIL_BOXES="$(TST_BOX2)" -e MAIL_DOMAIN="$(AD_DOM) $(EX_DOM)" \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
-	docker run -d $(CLT_ENV) $(CLTV_ENV) -e DKIM_SELECTOR=$(TST_DK_S) \
-		-e RELAYHOST=[$(SRV_NAME)] \
-		-e MYDESTINATION= -e MAIL_DOMAIN="$(AD_DOM)" \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
-
-test-up_8: test-up-net test_7
-	#
-	#
-	#
-	# test (8) persistent /srv no env given
-	#
-	# send: curl smtp://clt -> clt smtp://srv -> srv postfix mbox:$(EX_USR_BX)
-	# recv: cat srv mbox:$(EX_USR_BX)
-	#
-	#
-	docker run -d $(SRV_ENV) $(SRVV_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
-	docker run -d $(CLT_ENV) $(CLTV_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
-
-test-up_9: test-up-net test_8
-	#
-	#
-	#
-	# test (9) persistent /srv FORCE_CONFIG
-	#
-	# send: curl smtp://clt -> clt smtp://srv -> srv postfix mbox:$(EX_USR_BX)
-	# recv: cat srv mbox:$(EX_USR_BX)
-	#
-	#
-	docker run -d $(SRV_ENV) $(SRVV_ENV) -e FORCE_CONFIG=true \
-		-e MAIL_BOXES="$(TST_BOX2)" -e MAIL_DOMAIN="$(AD_DOM) $(EX_DOM)" \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
-	docker run -d $(CLT_ENV) $(CLTV_ENV) \
-		-e RELAYHOST=[$(AUT_NAME)] \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
+		$(TST_REPO):$(call _ver,$(TST_VER),base)
 
 test-mail: test-mail_0
 test-mail-send: test-mail-send_0
@@ -528,16 +456,6 @@ $(addprefix test-tls_,25 465 587):
 test-tls_%:
 	$(eval tst_starttls := $(shell if [ $* != 465 ]; then echo --starttls smtp; fi ))
 	docker run --rm -it --network $(NET_NAME) drwetter/testssl.sh $(tst_starttls) $(SRV_NAME):$* || true
-
-#test-learn-bayes:
-#	docker exec -it $(SRV_NAME) sh -c 'rm -f bayesian.database.gz && wget http://artinvoice.hu/spams/bayesian.database.gz && gunzip bayesian.database.gz && sa-learn --restore bayesian.database && chown -R amavis: /var/amavis && rm -rf bayesian.database'
-
-#test-export-bayes:
-#	docker exec -i $(SRV_NAME) sa-learn --backup > /tmp/bayesian.database.bak
-
-#test-import-bayes: /tmp/bayesian.database.bak
-#	docker cp /tmp/bayesian.database.bak $(SRV_NAME):/tmp/.
-#	docker exec -it $(SRV_NAME) sh -c 'sa-learn --restore /tmp/bayesian.database.bak && chown -R amavis: /var/amavis/.spamassassin && rm -rf /tmp/bayesian.database.bak'
 
 all-test_quiet:
 	$(eval CURL_OPT := -s -S )
