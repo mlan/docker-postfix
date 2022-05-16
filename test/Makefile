@@ -7,7 +7,6 @@
 
 TST_REPO ?= mlan/postfix
 TST_VER  ?= latest
-_ver      = $(if $(findstring latest,$(1)),$(2),$(2)-$(1))
 
 MTA_LIST ?= srv cli
 CNT_LIST ?= $(MTA_LIST) auth db
@@ -218,12 +217,12 @@ test-up_0:
 	# run containers see if there are logs and stop.
 	#
 	#
-	docker run -d --name $(SRV_NAME) $(TST_REPO):$(call _ver,$(TST_VER),base)
+	docker run -d --name $(SRV_NAME) $(TST_REPO):$(call bld_tag,base,$(TST_VER))
 	sleep $(TST_W8L1)
 	docker container logs $(SRV_NAME) | grep 'docker-entrypoint.sh'
 	docker rm -f $(SRV_NAME)
 	sleep $(TST_W8S1)
-	docker run -d --name $(SRV_NAME) $(TST_REPO):$(call _ver,$(TST_VER),full)
+	docker run -d --name $(SRV_NAME) $(TST_REPO):$(call bld_tag,full,$(TST_VER))
 	sleep $(TST_W8L1)
 	docker container logs $(SRV_NAME) | grep 'docker-entrypoint.sh'
 	docker rm -f $(SRV_NAME)
@@ -247,10 +246,10 @@ test-up_1: test-up-net
 	#
 	docker run -d $(SRV_ENV) \
 		-e MAIL_BOXES="$(TST_BOX)" -e MAIL_ALIASES="$(TST_ALS)" \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call bld_tag,base,$(TST_VER))
 	docker run -d $(CLT_ENV) \
 		-e RELAYHOST=[$(SRV_NAME)] -e MYDESTINATION= \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call bld_tag,base,$(TST_VER))
 
 test-up_2: test-up-net test-up-auth_2
 	#
@@ -263,9 +262,9 @@ test-up_2: test-up-net test-up-auth_2
 	#
 	#
 	docker run -d $(SRV_ENV) $(ADLU_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call bld_tag,base,$(TST_VER))
 	docker run -d $(CLT_ENV) -e RELAYHOST=[$(SRV_NAME)] -e MYDESTINATION= \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call bld_tag,base,$(TST_VER))
 
 test-up_3: test-up-net test-up-db_3 acme/acme.json
 	#
@@ -278,9 +277,9 @@ test-up_3: test-up-net test-up-db_3 acme/acme.json
 	#
 	#
 	docker run -d $(SRV_ENV) $(DBLU_ENV) $(TLS_ENV) $(DOVE_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
+		$(TST_REPO):$(call bld_tag,full,$(TST_VER))
 	docker run -d $(CLT_ENV) -e RELAYHOST=[$(SRV_NAME)] -e MYDESTINATION= \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call bld_tag,base,$(TST_VER))
 
 test-up_4: test-up-net test-up-auth_4 acme/acme.json
 	#
@@ -293,11 +292,11 @@ test-up_4: test-up-net test-up-auth_4 acme/acme.json
 	#
 	#
 	docker run -d $(SRV_ENV) $(ADAL_ENV) $(TLS_ENV) $(DOVE_ENV) \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
+		$(TST_REPO):$(call bld_tag,full,$(TST_VER))
 	docker run -d $(CLT_ENV) $(ADAU_ENV) -e SMTPD_USE_TLS=yes \
 		-e SMTP_RELAY_HOSTAUTH="[$(SRV_NAME)]:587 $(AD_MX_CN):$(AD_MX_PW)" \
 		-e MYDESTINATION= -e SMTP_TLS_SECURITY_LEVEL=encrypt \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
+		$(TST_REPO):$(call bld_tag,full,$(TST_VER))
 
 test-up_5: test-up-net acme/acme.json
 	#
@@ -312,11 +311,11 @@ test-up_5: test-up-net acme/acme.json
 	docker run -d $(SRV_ENV) $(ACME_ENV) \
 		-e MAIL_BOXES="$(TST_BOX)" \
 		-e SMTPD_SASL_CLIENTAUTH="$(AD_USR_CN):{plain}$(AD_USR_PW) $(EX_MX_CN):{plain}$(EX_MX_PW)" \
-		$(TST_REPO):$(call _ver,$(TST_VER),full)
+		$(TST_REPO):$(call bld_tag,full,$(TST_VER))
 	docker run -d $(CLT_ENV) \
 		-e SMTP_RELAY_HOSTAUTH="[$(SRV_NAME)]:587 $(EX_MX_CN):$(EX_MX_PW)" \
 		-e MYDESTINATION= -e SMTP_TLS_SECURITY_LEVEL=encrypt \
-		$(TST_REPO):$(call _ver,$(TST_VER),base)
+		$(TST_REPO):$(call bld_tag,base,$(TST_VER))
 
 test-mail: test-mail_0
 test-mail-send: test-mail-send_0

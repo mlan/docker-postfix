@@ -20,6 +20,10 @@ dkr_srv_ip   = $(shell docker inspect -f \
 	'{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
 	$$(docker-compose ps -q $(1)) | head -n1)
 #
+# $(call dkr_cnt_pid,demo-app-1) -> 9755
+#
+dkr_cnt_pid  = $(shell docker inspect --format '{{.State.Pid}}' $(1))
+#
 #cnt_ip_old = $(shell docker inspect -f \
 #	'{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' \
 #	$(1) | head -n1)
