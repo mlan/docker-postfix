@@ -278,6 +278,20 @@ Similarly Dovecot configuration variables can be set. One difference is that, to
 docker-compose exec mta doveconf
 ```
 
+## Milter support
+
+Postfix communicates with external applications like mail filters (Milters), providing spam filtering, using the Milter protocol, which is similar to SMTP.
+
+[Rspamd](https://rspamd.com/) is a fast, free and open-source spam filtering system, which has been tested with `mlan/postfix`. The [docker-postfix](https://github.com/mlan/docker-rspamd) repository provides a dockerized version of the Rspamd mail filter.
+
+#### `SMTPD_MILTERS`
+
+Communication with the [Rspamd](https://rspamd.com/) milter is configured by setting `SMTPD_MILTERS=inet:filt:11332`, which assumes that a Rspamd container, named `filt`, is reachable on the custom network.
+
+#### `MILTER_DEFAULT_ACTION`
+
+The [milter_default_action](http://www.postfix.org/postconf.5.html#milter_default_action) parameter specifies how Postfix handles Milter application errors. You can set `MILTER_DEFAULT_ACTION=accept` to proceed  as if the mail filter was not present, when there are errors.
+
 ## Outgoing SMTP relay
 
 Sometimes you want outgoing email to be sent to a SMTP relay and _not_ directly to its destination. This could for instance be when your ISP is blocking port 25 or perhaps if you have a dynamic IP and are afraid of that mail servers will drop your outgoing emails because of that.

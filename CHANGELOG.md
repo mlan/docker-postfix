@@ -5,4 +5,5 @@
 - [test](test) Cleanup tests.
 - [repo](Makefile) Now use functions in `bld.mk`.
 - [repo](README.md) Updated the `docker-compose.yml` example.
+- [repo](README.md) Added section on Milter support.
 - [demo](demo/Makefile) Monitor logs to determine when clamd is activated.
