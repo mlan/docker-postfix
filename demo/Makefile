@@ -19,28 +19,34 @@ NET_NAME ?= $(COMPOSE_PROJECT_NAME)_backend
 CURL_OPT ?= -s -v
 TSSL_CMD ?= docker run -i --rm --network $(NET_NAME) drwetter/testssl.sh
 CURL_CMD ?= curl
-webb_cmd ?= firefox $(1) &
+webb_avl := $(shell command -v browse 2> /dev/null || command -v firefox 2> /dev/null)
+webb_cmd ?= $(webb_avl) $(1) &
 APP_NAME  = app
 AUT_NAME  = auth
 AUW_NAME  = auth-web
 DB_NAME   = db
 DBW_NAME  = db-web
 MTA_NAME  = mta
+FLT_NAME  = filt
 APP_FQDN ?= $(call dkr_srv_ip,$(APP_NAME))
 AUT_FQDN ?= $(call dkr_srv_ip,$(AUT_NAME))
 AUW_FQDN ?= $(call dkr_cnt_ip,$(AUW_NAME))
 DB_FQDN  ?= $(call dkr_srv_ip,$(DB_NAME))
 DBW_FQDN ?= $(call dkr_cnt_ip,$(DBW_NAME))
 MTA_FQDN ?= $(call dkr_srv_ip,$(MTA_NAME))
+FLT_FQDN ?= $(call dkr_srv_ip,$(FLT_NAME)):11334
 
 MAIL_FROM ?= test@my-domain.biz
+MAIL_TYPE ?= text/plain
 
 variables:
 	make -pn | grep -A1 "^# makefile"| grep -v "^#\|^--" | sort | uniq
 
 test: all-test_quiet mta-test_smtp
 
-init: up auth-init db-init app-restart mta-init app-init
+init: up auth-init db-init mta-init app-init
+
+#init: up auth-init db-init app-restart mta-init wait_99 app-init
 
 ps:
 	docker-compose ps
@@ -103,8 +109,7 @@ $(addsuffix -hostaddr,$(SRV_LIST)):
 wait_%:
 	sleep $*
 
-web:
-	$(call webb_cmd,http://$(APP_FQDN))
+web: app-web
 
 auth-init: wait_3 auth-mod_conf auth-add_schema auth-add_data
 
@@ -203,13 +208,24 @@ kopanoSharedStoreOnly: 1
 kopanoResourceType: publicFolder:Public Stores/public
 endef
 
+PLAIN_SUBJ = Test message.
+PLAIN_MESS = Great news! You can receive email.
+GTUBE_SUBJ = GTUBE spam message.
+GTUBE_MESS = XJS*C4JDBQADN1.NSBN3*2IDNEN*GTUBE-STANDARD-ANTI-UBE-TEST-EMAIL*C.34X
+EICAR_SUBJ = EICAR virus message.
+EICAR_MESS = X5O!P%@AP[4\PZX54(P^)7CC)7}\$$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$$H+H*
+EICAR_TYPE = audio/basic
+
 define messid
 $(shell echo $$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c8)@dot.com)
 endef
 
+define head_mail
+@echo -e "From: <$(1)>\nTo: <$(2)>\nDate: $$(date -R)\nMessage-ID: <$(messid)>\nMIME-Version: 1.0\nContent-type: $(if $(5),$(5),$(MAIL_TYPE))\nSubject: $(3)\n\n$(if $(4),$(4),$(PLAIN_MESS))\n" | tee /dev/tty
+endef
+
 define smtp_mail
-@echo -e "From: <$(2)>\nTo: <$(3)>\nDate: $$(date -R)\nMessage-ID: <$(messid)>\nSubject: $(4)\n\
-\n\nGreat news! You can receive email.\n" | tee /dev/tty \
+$(call head_mail,$(2),$(3),$(4),$(5),$(6)) \
 | $(CURL_CMD) $(1) -T - --mail-from $(2) --mail-rcpt $(3) $(CURL_OPT)
 endef
 
@@ -218,21 +234,6 @@ printf "LHLO mx\nMAIL FROM: <$(2)>\nRCPT TO: <$(3)>\nDATA\
 \nFrom: <$(2)>\nTo: <$(3)>\nDate: $$(date -R)\nSubject: $(4)\
 \n\nGreat news! You can receive email.\n.\nQUIT\n" | tee /dev/tty \
 | $(CURL_CMD) $(1) -T - $(CURL_OPT)
-endef
-
-virus_mess = X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*
-
-define gtube_mail
-@echo -e "From: <$(2)>\nTo: <$(3)>\nDate: $$(date -R)\nMessage-ID: <$(messid)>\nSubject: $(4)\n\
-\n\nXJS*C4JDBQADN1.NSBN3*2IDNEN*GTUBE-STANDARD-ANTI-UBE-TEST-EMAIL*C.34X\n" | tee /dev/tty \
-| $(CURL_CMD) $(1) -T - --mail-from $(2) --mail-rcpt $(3) $(CURL_OPT)
-endef
-
-define eicar_mail
-@echo -e "From: <$(2)>\nTo: <$(3)>\nDate: $$(date -R)\nSubject: $(4)\n\
-\nMessage-ID: <$(messid)>\nMIME-Version: 1.0\nContent-type: audio/basic\n\
-\n\nX5O!P%@AP[4\PZX54(P^)7CC)7}\$$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$$H+H*\n" | tee /dev/tty \
-| $(CURL_CMD) $(1) -T - --mail-from $(2) --mail-rcpt $(3) $(CURL_OPT)
 endef
 
 export define MAKE_UTILS_CONTAINER
@@ -247,6 +248,7 @@ AUW_FQDN ?= $(AUW_NAME)
 DB_FQDN  ?= $(DB_NAME)
 DBW_FQDN ?= $(DBW_NAME)
 MTA_FQDN ?= $(MTA_NAME)
+FLT_FQDN ?= $(FLT_NAME)
 endef
 
 utils-container:
@@ -297,13 +299,13 @@ mta-init_bayes:
 	docker-compose exec mta sh -c 'rm -f bayesian.database.gz && wget http://artinvoice.hu/spams/bayesian.database.gz && gunzip bayesian.database.gz && sa-learn --restore bayesian.database && chown -R amavis: /var/amavis/.spamassassin && rm -rf bayesian.database'
 
 mta-test_smtp:
-	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),A SMTP test message.)
+	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(PLAIN_SUBJ))
 
-mta-test_spam:
-	$(call gtube_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),A SMTP bulk message.)
+mta-test_gtube:
+	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(GTUBE_SUBJ),$(GTUBE_MESS))
 
-mta-test_virus:
-	$(call eicar_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),A SMTP virus message.)
+mta-test_eicar:
+	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(EICAR_SUBJ),$(EICAR_MESS),$(EICAR_TYPE))
 
 mta-test_regexp:
 	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)+info@$(MAIL_DOMAIN),A regexp SMTP test message.)
@@ -352,10 +354,10 @@ mta-test_imaps:
 	--ssl --anyauth -k -u $(AD_USR_CN):$(AD_USR_PW) $(CURL_OPT)
 
 mta-man:
-	docker-compose exec mta apk --no-cache --update add man-db man-pages apk-tools-doc \
-	postfix-doc cyrus-sasl-doc dovecot-doc clamav-doc rspamd-doc
+	docker-compose exec mta apk --no-cache --update add \
+	man-db man-pages apk-tools-doc postfix-doc cyrus-sasl-doc dovecot-doc
 
-filt-init_rspamd:
+filt-init:
 	docker-compose exec filt sh -c 'rspamadm configwizard; sv restart rspamd'
 
 filt-freshclam_nodns:
@@ -364,18 +366,39 @@ filt-freshclam_nodns:
 filt-clamdtop:
 	docker-compose exec filt clamdtop
 
-filt-clamd_reload:
+filt-reload:
 	docker-compose exec filt /bin/sh -c 'echo RELOAD | nc localhost 3310'
+
+filt-ping:
+	docker-compose exec filt /bin/sh -c 'echo PING | nc localhost 3310'
 
 filt-tools:
 	docker-compose exec filt apk --no-cache --update add \
 	nano less lsof htop openldap-clients bind-tools iputils strace iproute2
 
+filt-man:
+	docker-compose exec filt apk --no-cache --update add \
+	man-db man-pages apk-tools-doc clamav-doc rspamd-doc
+
 filt-apk_list:
 	docker-compose exec filt /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
 
 filt-web:
-	firefox http://localhost:11334 &
+	$(call webb_cmd,http://$(FLT_FQDN))
+
+filt-test: filt-test_plain filt-test_gtube filt-test_eicar
+
+filt-test_plain:
+	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(PLAIN_SUBJ)) \
+	| docker-compose exec -T filt rspamc --hostname localhost
+
+filt-test_gtube:
+	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(GTUBE_SUBJ),$(GTUBE_MESS)) \
+	| docker-compose exec -T filt rspamc --hostname localhost
+
+filt-test_eicar:
+	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(EICAR_SUBJ),$(EICAR_MESS),$(EICAR_TYPE)) \
+	| docker-compose exec -T filt rspamc --hostname localhost
 
 db-init:
 
@@ -393,11 +416,20 @@ db-web-up:
 db-web-down:
 	docker rm -f $(DBW_NAME) || true
 
-app-init: app-public_store app-create_smime
+app-init: app-wait app-public_store app-create_smime
+
+app-wait:
+	#
+	# Waiting for kopano-server to initialize.
+	#
+	time docker-compose logs -f app | sed -n '/Startup succeeded/{p;q}'
+	#
+	# kopano-server ready.
+	#
 
 app-tools:
-	docker-compose exec app apt-get update
-	docker-compose exec app apt-get install --yes \
+	docker-compose exec app apt update
+	docker-compose exec app apt install --yes \
 	less nano ldap-utils htop net-tools lsof iputils-ping dnsutils strace
 
 app-htop: app-tools
@@ -437,6 +469,12 @@ app-test_oof1:
 app-test_oof0:
 	docker-compose exec app kopano-oof -u $(AD_USR_CN) -m 0
 
+app-stats_server:
+	docker-compose exec app kopano-stats --system
+
+app-show_server:
+	docker-compose exec app kopano-stats --top
+
 app-show_user1:
 	docker-compose exec app kopano-admin --details $(AD_USR_CN)
 
@@ -462,6 +500,9 @@ $(addprefix app-parms_,archiver dagent gateway ical ldap search server spamd spo
 app-create_smime: all-create_smime
 	docker cp ssl/ca.crt $(call dkr_srv_cnt,app):/usr/local/share/ca-certificates/$(MAIL_DOMAIN)_CA.crt
 	docker-compose exec app update-ca-certificates
+
+app-web:
+	$(call webb_cmd,http://$(APP_FQDN))
 
 all-test_quiet:
 	$(eval CURL_OPT := -s -S )

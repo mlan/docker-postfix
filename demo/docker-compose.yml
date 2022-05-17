@@ -90,9 +90,12 @@ services:
     depends_on:
       - mta
     environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
+#      - WORKER_CONTROLLER=password="${FILT_PASSWD-secret}";
+      - WORKER_CONTROLLER=enable_password="${FILT_PASSWD-secret}";
+      - METRICS=${FILT_METRIC}
       - DKIM_SELECTOR=${DKIM_SELECTOR-default}
       - SYSLOG_LEVEL=${SYSLOG_LEVEL-}
-      - LOG_LEVEL=${LOG_LEVEL-0}
+      - LOGGING=level="${FILT_LOGGING-error}";
     volumes:
       - filt:/srv
       - app-spam:/var/lib/kopano/spamd          # kopano-spamd integration

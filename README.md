@@ -1,19 +1,19 @@
 # The `mlan/postfix` repository
 
-![travis-ci test](https://img.shields.io/travis/mlan/docker-postfix.svg?label=build&style=flat-square&logo=travis)
-![docker build](https://img.shields.io/docker/cloud/build/mlan/postfix.svg?label=build&style=flat-square&logo=docker)
+![travis-ci test](https://img.shields.io/travis/com/mlan/docker-postfix.svg?label=build&style=flat-square&logo=travis)
+![docker version](https://img.shields.io/docker/v/mlan/postfix?logo=docker&style=flat-square)
 ![image size](https://img.shields.io/docker/image-size/mlan/postfix/latest.svg?label=size&style=flat-square&logo=docker)
 ![docker pulls](https://img.shields.io/docker/pulls/mlan/postfix.svg?label=pulls&style=flat-square&logo=docker)
 ![docker stars](https://img.shields.io/docker/stars/mlan/postfix.svg?label=stars&style=flat-square&logo=docker)
-![github stars](https://img.shields.io/github/stars/mlan/docker-postfix.svg?label=stars&style=popout-square&logo=github)
+![github stars](https://img.shields.io/github/stars/mlan/docker-postfix.svg?label=stars&style=flat-square&logo=github)
 
 This (non official) repository provides dockerized (MTA) [Mail Transfer Agent](https://en.wikipedia.org/wiki/Message_transfer_agent) (SMTP) service using [Postfix](http://www.postfix.org/) and [Dovecot](https://www.dovecot.org/).
 
 ## Features
 
 - MTA (SMTP) server and client [Postfix](http://www.postfix.org/)
-- [PostSRSd](#forwarding-rewrite), sender rewriting scheme
 - [SMTP client authentication](#incoming-smtps-and-submission-client-authentication) on the SMTPS (port 465) and submission (port 587) using [Dovecot](https://www.dovecot.org/)
+- [PostSRSd](#forwarding-rewrite), sender rewriting scheme
 - Hooks for integrating [Let’s Encrypt](#lets-encrypt-lts-certificates-using-traefik) LTS certificates using the reverse proxy [Traefik](https://docs.traefik.io/)
 - Consolidated configuration and run data under `/srv` to facilitate [persistent storage](#persistent-storage)
 - Simplified configuration of [passwd file](#table-mailbox-lookup) authentication, mailbox lookup using environment variables
@@ -36,7 +36,7 @@ This (non official) repository provides dockerized (MTA) [Mail Transfer Agent](h
 
 The MAJOR.MINOR.PATCH [SemVer](https://semver.org/) is
 used. In addition to the three number version number you can use two or
-one number versions numbers, which refers to the latest version of the 
+one number versions numbers, which refers to the latest version of the
 sub series. The tag `latest` references the build based on the latest commit to the repository.
 
 The `mlan/postfix` repository contains a multi staged built. You select which build using the appropriate tag from `base` and `full`. The image `base` only contain Postfix. The image built with the tag `full` extend `base` to include [Dovecot](https://www.dovecot.org/), which provides mail delivery via IMAP and POP3 and SMTP client authentication as well as integration of [Let’s Encrypt](https://letsencrypt.org/) TLS certificates using [Traefik](https://docs.traefik.io/).
@@ -57,7 +57,7 @@ One convenient way to test the image is to clone the [github](https://github.com
 
 ## Docker compose example
 
-An example of how to configure an web mail server using docker compose is given below. It defines 4 services, `app`, `mta`, `db` and `auth`, which are the web mail server, the mail transfer agent, the SQL database and LDAP authentication respectively.
+An example of how to configure an web mail server using docker compose is given below. It defines 5 services, `app`, `mta`, `filt`, `db` and `auth`, which are the web mail server, the mail transfer agent, the SQL database and LDAP authentication respectively.
 
 ```yaml
 version: '3'
@@ -69,9 +69,12 @@ services:
       - backend
     ports:
       - "127.0.0.1:8008:80"    # WebApp & EAS (alt. HTTP)
-      - "127.0.0.1:110:110"    # POP3 (not needed if all devices can use EAS)
       - "127.0.0.1:143:143"    # IMAP (not needed if all devices can use EAS)
-      - "127.0.0.1:8080:8080"  # CalDAV (not needed if all devices can use EAS)
+      - "127.0.0.1:110:110"    # POP3 (not needed if all devices can use EAS)
+      - "127.0.0.1:8080:8080"  # ICAL (not needed if all devices can use EAS)
+      - "127.0.0.1:993:993"    # IMAPS (not needed if all devices can use EAS)
+      - "127.0.0.1:995:995"    # POP3S (not needed if all devices can use EAS)
+      - "127.0.0.1:8443:8443"  # ICALS (not needed if all devices can use EAS)
     depends_on:
       - auth
       - db
@@ -81,17 +84,24 @@ services:
       - LDAP_URI=ldap://auth:389/
       - MYSQL_HOST=db
       - SMTP_SERVER=mta
-      - LDAP_SEARCH_BASE=${LDAP_BASE-dc=example,dc=com}
-      - LDAP_USER_TYPE_ATTRIBUTE_VALUE=${LDAP_USEROBJ-posixAccount}
-      - LDAP_GROUP_TYPE_ATTRIBUTE_VALUE=${LDAP_GROUPOBJ-posixGroup}
+      - LDAP_SEARCH_BASE=${AD_BASE-dc=example,dc=com}
+      - LDAP_USER_TYPE_ATTRIBUTE_VALUE=${AD_USR_OB-kopano-user}
+      - LDAP_GROUP_TYPE_ATTRIBUTE_VALUE=${AD_GRP_OB-kopano-group}
+      - LDAP_GROUPMEMBERS_ATTRIBUTE_TYPE=dn
+      - LDAP_PROPMAP=
+      - DAGENT_PLUGINS=movetopublicldap
       - MYSQL_DATABASE=${MYSQL_DATABASE-kopano}
       - MYSQL_USER=${MYSQL_USER-kopano}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD-secret}
-      - POP3_LISTEN=*:110                       # also listen to eth0
       - IMAP_LISTEN=*:143                       # also listen to eth0
+      - POP3_LISTEN=*:110                       # also listen to eth0
       - ICAL_LISTEN=*:8080                      # also listen to eth0
-      - DISABLED_FEATURES=${DISABLED_FEATURES-} # also enable IMAP and POP3
+      - IMAPS_LISTEN=*:993                      # enable TLS
+      - POP3S_LISTEN=*:995                      # enable TLS
+      - ICALS_LISTEN=*:8443                     # enable TLS
+      - PLUGIN_SMIME_USER_DEFAULT_ENABLE_SMIME=true
       - SYSLOG_LEVEL=${SYSLOG_LEVEL-3}
+      - LOG_LEVEL=${LOG_LEVEL-3}
     volumes:
       - app-conf:/etc/kopano
       - app-atch:/var/lib/kopano/attachments
@@ -108,27 +118,47 @@ services:
       - backend
     ports:
       - "127.0.0.1:25:25"      # SMTP
+      - "127.0.0.1:465:465"    # SMTPS authentication required
     depends_on:
       - auth
     environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
       - MESSAGE_SIZE_LIMIT=${MESSAGE_SIZE_LIMIT-25600000}
       - LDAP_HOST=auth
       - VIRTUAL_TRANSPORT=lmtp:app:2003
+      - SMTPD_MILTERS=inet:filt:11332
+      - MILTER_DEFAULT_ACTION=accept
       - SMTP_RELAY_HOSTAUTH=${SMTP_RELAY_HOSTAUTH-}
       - SMTP_TLS_SECURITY_LEVEL=${SMTP_TLS_SECURITY_LEVEL-}
       - SMTP_TLS_WRAPPERMODE=${SMTP_TLS_WRAPPERMODE-no}
-      - LDAP_USER_BASE=ou=${LDAP_USEROU-users},${LDAP_BASE-dc=example,dc=com}
-      - LDAP_QUERY_FILTER_USER=(&(objectclass=${LDAP_USEROBJ-posixAccount})(mail=%s))
+      - SMTPD_USE_TLS=yes
+      - LDAP_USER_BASE=ou=${AD_USR_OU-users},${AD_BASE-dc=example,dc=com}
+      - LDAP_QUERY_FILTER_USER=(&(objectclass=${AD_USR_OB-kopano-user})(mail=%s))
+      - LDAP_QUERY_FILTER_ALIAS=(&(objectclass=${AD_USR_OB-kopano-user})(kopanoAliases=%s))
       - LDAP_QUERY_ATTRS_PASS=uid=user
       - REGEX_ALIAS=${REGEX_ALIAS-}
-      - DKIM_SELECTOR=${DKIM_SELECTOR-default}
-      - SA_TAG_LEVEL_DEFLT=${SA_TAG_LEVEL_DEFLT-2.0}
-      - SA_DEBUG=${SA_DEBUG-0}
-      - SYSLOG_LEVEL=${SYSLOG_LEVEL-}
-      - LOG_LEVEL=${LOG_LEVEL-0}
-      - RAZOR_REGISTRATION=${RAZOR_REGISTRATION-}
     volumes:
       - mta:/srv
+      - app-spam:/var/lib/kopano/spamd          # kopano-spamd integration
+      - /etc/localtime:/etc/localtime:ro        # Use host timezone
+    cap_add: # helps debugging by allowing strace
+      - sys_ptrace
+
+  filt:
+    image: mlan/rspamd
+    networks:
+      - backend
+    ports:
+      - "127.0.0.1:11334:11334" # HTML rspamd WebGui
+    depends_on:
+      - mta
+    environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
+      - WORKER_CONTROLLER=enable_password="${FILT_PASSWD-secret}";
+      - METRICS=${FILT_METRIC}
+      - DKIM_SELECTOR=${DKIM_SELECTOR-default}
+      - SYSLOG_LEVEL=${SYSLOG_LEVEL-}
+      - LOGGING=level="${FILT_LOGGING-error}";
+    volumes:
+      - filt:/srv
       - app-spam:/var/lib/kopano/spamd          # kopano-spamd integration
       - /etc/localtime:/etc/localtime:ro        # Use host timezone
     cap_add: # helps debugging by allowing strace
@@ -153,8 +183,10 @@ services:
     image: mlan/openldap
     networks:
       - backend
+    command: --root-cn ${AD_ROOT_CN-admin} --root-pw ${AD_ROOT_PW-secret}
     environment:
-      - LDAP_LOGLEVEL=parse
+      - LDAPBASE=${AD_BASE-dc=example,dc=com}
+      - LDAPDEBUG=${AD_DEBUG-parse}
     volumes:
       - auth:/srv
       - /etc/localtime:/etc/localtime:ro        # Use host timezone
@@ -170,6 +202,7 @@ volumes:
   auth:
   db:
   mta:
+  filt:
 ```
 
 ## Demo
@@ -186,7 +219,7 @@ From within the [demo](demo) directory you can start the containers by typing:
 make init
 ```
 
-Then you can assess WebApp on the URL [`http://localhost:8008`](http://localhost:8008) and log in with the user name `demo` and password `demo` . 
+Then you can assess WebApp on the URL [`http://localhost:8008`](http://localhost:8008) and log in with the user name `demo` and password `demo` .
 
 ```bash
 make web
@@ -493,7 +526,7 @@ As mentioned in [incoming SMTPS and submission client authentication](#incoming-
 
 The recipient email address can be rewritten using [regular expressions](https://en.wikipedia.org/wiki/Regular_expression) in `REGEX_ALIAS`. This can be useful in some situations.
 
-For example, assume you want email addresses like `user+info@domain.com` and `user-news@domain.com` to be forwarded to `user@domain.com`. This can be achieved by setting `REGEX_ALIAS='/([^+]+)[+-].*@(.+)/ $1@$2'`. The user can now, with the mail client, arrange filters to sort email into sub folders.
+For example, assume you want email addresses like `user+info@domain.com` and `user-news@domain.com` to be forwarded to `user@domain.com`. This can be achieved by setting `REGEX_ALIAS='/([^+]+)[+-].*@(domain.com)/ $1@$2'`. The user can now, with the mail client, arrange filters to sort email into sub folders.
 
 ## Delivery transport and mail boxes
 

@@ -8,7 +8,7 @@
 #
 dkr_srv_cnt = $(shell docker-compose ps -q $(1) | head -n1)
 #
-# $(call dkr_cnt_ip,demo_app_1) -> 172.28.0.3
+# $(call dkr_cnt_ip,demo-app-1) -> 172.28.0.3
 #
 dkr_cnt_ip   = $(shell docker inspect -f \
 	'{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
