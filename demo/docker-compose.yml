@@ -90,7 +90,6 @@ services:
     depends_on:
       - mta
     environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
-#      - WORKER_CONTROLLER=password="${FILT_PASSWD-secret}";
       - WORKER_CONTROLLER=enable_password="${FILT_PASSWD-secret}";
       - METRICS=${FILT_METRIC}
       - DKIM_SELECTOR=${DKIM_SELECTOR-default}

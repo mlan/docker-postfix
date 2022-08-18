@@ -400,6 +400,9 @@ filt-test_eicar:
 	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(EICAR_SUBJ),$(EICAR_MESS),$(EICAR_TYPE)) \
 	| docker-compose exec -T filt rspamc --hostname localhost
 
+filt-passwd:
+	docker-compose exec filt rspamadm pw
+
 db-init:
 
 db-test:

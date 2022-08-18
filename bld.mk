@@ -41,10 +41,17 @@ $(2))
 
 #
 # $(call bld_tag,full,) -> full
-# $(call bld_tag,full,latest) -> full
-# $(call bld_tag,full,something) -> full-something
+# $(call bld_tag,,) -> latest
 #
-bld_tag = $(if $(2),$(if $(findstring latest,$(2)),$(1),$(1)-$(2)),$(1))
+# $(call bld_tag,full,something) -> full-something
+# $(call bld_tag,,something) -> something
+#
+# $(call bld_tag,full,latest) -> full
+# $(call bld_tag,,latest) -> latest
+#
+bld_tag = $(strip $(if $(1),\
+$(if $(2),$(if $(findstring latest,$(2)),$(1),$(1)-$(2)),$(1)),\
+$(if $(2),$(2),latest)))
 
 #
 # $(call bld_gittags,HEAD) -> 1.2.3 1.2 1
