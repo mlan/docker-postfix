@@ -5,7 +5,7 @@
 
 -include    *.mk .env .init.env
 
-SRV_LIST ?= auth app db mta filt
+SRV_LIST ?= auth app db mta flt
 
 AD_DOM   ?= $(call ad_sub_dot, $(AD_BASE))
 AD_DC    ?= $(call ad_cut_dot, 1, 1, $(AD_DOM))
@@ -27,7 +27,7 @@ AUW_NAME  = auth-web
 DB_NAME   = db
 DBW_NAME  = db-web
 MTA_NAME  = mta
-FLT_NAME  = filt
+FLT_NAME  = flt
 APP_FQDN ?= $(call dkr_srv_ip,$(APP_NAME))
 AUT_FQDN ?= $(call dkr_srv_ip,$(AUT_NAME))
 AUW_FQDN ?= $(call dkr_cnt_ip,$(AUW_NAME))
@@ -36,8 +36,11 @@ DBW_FQDN ?= $(call dkr_cnt_ip,$(DBW_NAME))
 MTA_FQDN ?= $(call dkr_srv_ip,$(MTA_NAME))
 FLT_FQDN ?= $(call dkr_srv_ip,$(FLT_NAME)):11334
 
-MAIL_FROM ?= test@my-domain.biz
+MAIL_FROM ?= test@$(MAIL_DOMAIN) #test@my-domain.biz
 MAIL_TYPE ?= text/plain
+
+HAM_URL ?= https://www2.aueb.gr/users/ion/data/enron-spam/raw/ham/beck-s.tar.gz
+SPAM_URL ?= https://www2.aueb.gr/users/ion/data/enron-spam/raw/spam/BG.tar.gz
 
 variables:
 	make -pn | grep -A1 "^# makefile"| grep -v "^#\|^--" | sort | uniq
@@ -215,6 +218,8 @@ GTUBE_MESS = XJS*C4JDBQADN1.NSBN3*2IDNEN*GTUBE-STANDARD-ANTI-UBE-TEST-EMAIL*C.34
 EICAR_SUBJ = EICAR virus message.
 EICAR_MESS = X5O!P%@AP[4\PZX54(P^)7CC)7}\$$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$$H+H*
 EICAR_TYPE = audio/basic
+RANDS_SUBJ = $(shell shuf -n 3 /usr/share/dict/words | tr '\n' ' ')
+RANDS_MESS = $(shell shuf -n 200 /usr/share/dict/words | tr '\n' ' ')
 
 define messid
 $(shell echo $$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c8)@dot.com)
@@ -295,11 +300,14 @@ auth-web-down:
 
 mta-init:
 
-mta-init_bayes:
-	docker-compose exec mta sh -c 'rm -f bayesian.database.gz && wget http://artinvoice.hu/spams/bayesian.database.gz && gunzip bayesian.database.gz && sa-learn --restore bayesian.database && chown -R amavis: /var/amavis/.spamassassin && rm -rf bayesian.database'
+mta-edh:
+	docker-compose exec mta run postfix_update_dhparam
 
 mta-test_smtp:
 	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(PLAIN_SUBJ))
+
+mta-test_rand:
+	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(RANDS_SUBJ),$(RANDS_MESS))
 
 mta-test_gtube:
 	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(GTUBE_SUBJ),$(GTUBE_MESS))
@@ -349,59 +357,67 @@ mta-flush_mailq:
 mta-test_auth:
 	docker-compose exec mta doveadm auth test $(AD_USR_CN) $(AD_USR_PW)
 
-mta-test_imaps:
-	$(CURL_CMD) imaps://$(MTA_FQDN)//inbox -X "fetch 1 all" \
-	--ssl --anyauth -k -u $(AD_USR_CN):$(AD_USR_PW) $(CURL_OPT)
-
 mta-man:
 	docker-compose exec mta apk --no-cache --update add \
 	man-db man-pages apk-tools-doc postfix-doc cyrus-sasl-doc dovecot-doc
 
-filt-init:
-	docker-compose exec filt sh -c 'rspamadm configwizard; sv restart rspamd'
+flt-init:
+	docker-compose exec flt sh -c 'rspamadm configwizard; sv restart rspamd'
 
-filt-freshclam_nodns:
-	docker-compose exec filt freshclam --no-dns
+flt-clamdtop:
+	docker-compose exec flt clamdtop
 
-filt-clamdtop:
-	docker-compose exec filt clamdtop
+flt-reload:
+	docker-compose exec flt /bin/sh -c 'echo RELOAD | nc localhost 3310'
 
-filt-reload:
-	docker-compose exec filt /bin/sh -c 'echo RELOAD | nc localhost 3310'
+flt-ping:
+	docker-compose exec flt /bin/sh -c 'echo PING | nc localhost 3310'
 
-filt-ping:
-	docker-compose exec filt /bin/sh -c 'echo PING | nc localhost 3310'
+flt-tools:
+	docker-compose exec flt apk --no-cache --update add \
+	nano less lsof htop openldap-clients bind-tools iputils strace iproute2 curl
 
-filt-tools:
-	docker-compose exec filt apk --no-cache --update add \
-	nano less lsof htop openldap-clients bind-tools iputils strace iproute2
-
-filt-man:
-	docker-compose exec filt apk --no-cache --update add \
+flt-man:
+	docker-compose exec flt apk --no-cache --update add \
 	man-db man-pages apk-tools-doc clamav-doc rspamd-doc
 
-filt-apk_list:
-	docker-compose exec filt /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
+flt-apk_list:
+	docker-compose exec flt /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
 
-filt-web:
+flt-web:
 	$(call webb_cmd,http://$(FLT_FQDN))
 
-filt-test: filt-test_plain filt-test_gtube filt-test_eicar
+flt-test: flt-test_plain flt-test_gtube flt-test_eicar
 
-filt-test_plain:
+flt-test_plain:
 	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(PLAIN_SUBJ)) \
-	| docker-compose exec -T filt rspamc --hostname localhost
+	| docker-compose exec -T flt rspamc --hostname localhost
 
-filt-test_gtube:
+flt-test_gtube:
 	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(GTUBE_SUBJ),$(GTUBE_MESS)) \
-	| docker-compose exec -T filt rspamc --hostname localhost
+	| docker-compose exec -T flt rspamc --hostname localhost
 
-filt-test_eicar:
+flt-test_eicar:
 	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(EICAR_SUBJ),$(EICAR_MESS),$(EICAR_TYPE)) \
-	| docker-compose exec -T filt rspamc --hostname localhost
+	| docker-compose exec -T flt rspamc --hostname localhost
 
-filt-passwd:
-	docker-compose exec filt rspamadm pw
+flt-passwd:
+	docker-compose exec flt rspamadm pw
+
+flt-bayes_init:
+	docker-compose exec flt sh -c 'mkdir -p /tmp/ham && wget --no-check-certificate -O - $(HAM_URL)  | tar -xzC /tmp/ham && rspamc learn_ham /tmp/ham'
+	docker-compose exec flt sh -c 'mkdir -p /tmp/spam && wget --no-check-certificate -O - $(SPAM_URL) | tar -xzC /tmp/spam && rspamc learn_spam /tmp/spam'
+
+flt-stat:
+	docker-compose exec flt rspamc stat
+
+flt-config:
+	docker-compose exec flt rspamadm configdump
+
+flt-config_%:
+	docker-compose exec flt rspamadm configdump $*
+
+$(addprefix flt-config_,actions antivirus classifier dkim dkim_signing greylist group.statistics logging metric milter_headers options redis worker):
 
 db-init:
 
