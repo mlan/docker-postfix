@@ -389,7 +389,7 @@ Forward secrecy is accomplished by negotiating session keys using per-session cr
 The built in utility script `run` can be used to generate the Diffie-Hellman parameters needed for forward secrecy.
 
 ```bash
-docker exec -it mta run update_postfix_dhparam
+docker exec -it mta run postfix_update_dhparam
 ```
 
 ### Let’s Encrypt LTS certificates using Traefik

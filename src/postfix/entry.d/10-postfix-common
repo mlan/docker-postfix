@@ -323,7 +323,7 @@ postfix_activate_tls_cert() {
 # Optionally generate non-default Postfix SMTP server EDH parameters for improved security.
 # Note, since 2015, 512 bit export ciphers are no longer used this takes a long time.
 # Run this manually once the container is up by:
-# conf postfix_update_dhparam
+# run postfix_update_dhparam
 #
 postfix_update_dhparam() {
 	local bits=${1-2048}
