@@ -1,4 +1,4 @@
-# 1.0.0
+# 0.9.0
 
 - [docker](Makefile) Use alpine:3.17 (postfix:3.7.3 dovecot:2.3.19.1).
 - [repo](.) Based on [mlan/postfix-amavis](https://github.com/mlan/docker-postfix).

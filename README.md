@@ -125,7 +125,7 @@ services:
       - MESSAGE_SIZE_LIMIT=${MESSAGE_SIZE_LIMIT-25600000}
       - LDAP_HOST=auth
       - VIRTUAL_TRANSPORT=lmtp:app:2003
-      - SMTPD_MILTERS=inet:filt:11332
+      - SMTPD_MILTERS=inet:flt:11332
       - MILTER_DEFAULT_ACTION=accept
       - SMTP_RELAY_HOSTAUTH=${SMTP_RELAY_HOSTAUTH-}
       - SMTP_TLS_SECURITY_LEVEL=${SMTP_TLS_SECURITY_LEVEL-}
@@ -143,7 +143,7 @@ services:
     cap_add: # helps debugging by allowing strace
       - sys_ptrace
 
-  filt:
+  flt:
     image: mlan/rspamd
     networks:
       - backend
@@ -152,13 +152,16 @@ services:
     depends_on:
       - mta
     environment: # Virgin config, ignored on restarts unless FORCE_CONFIG given.
-      - WORKER_CONTROLLER=enable_password="${FILT_PASSWD-secret}";
-      - METRICS=${FILT_METRIC}
+      - WORKER_CONTROLLER=enable_password="${FLT_PASSWD-secret}";
+      - METRICS=${FLT_METRIC}
+      - CLASSIFIER_BAYES=${FLT_BAYES}
+      - MILTER_HEADERS=${FLT_HEADERS}
+      - DKIM_DOMAIN=${MAIL_DOMAIN-example.com}
       - DKIM_SELECTOR=${DKIM_SELECTOR-default}
       - SYSLOG_LEVEL=${SYSLOG_LEVEL-}
-      - LOGGING=level="${FILT_LOGGING-error}";
+      - LOGGING=level="${FLT_LOGGING-error}";
     volumes:
-      - filt:/srv
+      - flt:/srv
       - app-spam:/var/lib/kopano/spamd          # kopano-spamd integration
       - /etc/localtime:/etc/localtime:ro        # Use host timezone
     cap_add: # helps debugging by allowing strace
@@ -202,7 +205,7 @@ volumes:
   auth:
   db:
   mta:
-  filt:
+  flt:
 ```
 
 ## Demo
@@ -286,7 +289,7 @@ Postfix communicates with external applications like mail filters (Milters), pro
 
 #### `SMTPD_MILTERS`
 
-Communication with the [Rspamd](https://rspamd.com/) milter is configured by setting `SMTPD_MILTERS=inet:filt:11332`, which assumes that a Rspamd container, named `filt`, is reachable on the custom network.
+Communication with the [Rspamd](https://rspamd.com/) milter is configured by setting `SMTPD_MILTERS=inet:flt:11332`, which assumes that a Rspamd container, named `flt`, is reachable on the custom network.
 
 #### `MILTER_DEFAULT_ACTION`
 
