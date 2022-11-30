@@ -359,6 +359,7 @@ test-up-auth_%:
 	echo "$$LDIF_ADD_DATA" | docker exec -i $(AUT_NAME) ldapadd -Q
 
 test-up-db_%:
+	$(call dkr_pull_missing,$(DB_IMG))
 	docker run -d $(DB_ENV) $(DB_VOL) $(DB_IMG)
 	$(call dkr_cnt_timeout,180,$(DB_NAME))
 	$(call dkr_cnt_wait,$(DB_NAME),ready for connections)

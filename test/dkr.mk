@@ -49,6 +49,11 @@ dkr_srv_timeout = $(call dkr_cnt_timeout,$(1),$(call dkr_srv_cnt $(2)))
 dkr_cnt_wait = time docker logs -f $(1) 2>&1 | sed -n '/$(2)/{p;q}'
 
 #
+# $(call dkr_pull_missing,mariadb:latest) -> if ! docker image inspect mariadb:latest &>/dev/null; then docker pull mariadb:latest; fi
+#
+dkr_pull_missing = if ! docker image inspect $(1) &>/dev/null; then docker pull $(1); fi
+
+#
 # List IPs of containers
 #
 ip-list:
