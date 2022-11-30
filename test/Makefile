@@ -148,7 +148,7 @@ GREP_ENV ?=
 
 TST_W8S1 ?= 1
 TST_W8AU ?= 3
-TST_W8DB ?= 80
+TST_W8DB ?= 180
 TST_W8S2 ?= 80
 TST_W8L1 ?= 20
 TST_W8L2 ?= 120
@@ -354,14 +354,15 @@ test-down_%:
 
 test-up-auth_%:
 	docker run -d $(AUT_ENV) $(AUT_VOL) $(AUT_IMG)
+	$(call dkr_cnt_wait,$(AUT_NAME),OpenLDAP)
 	sleep $(TST_W8AU)
 	echo "$$LDIF_ADD_DATA" | docker exec -i $(AUT_NAME) ldapadd -Q
 
 test-up-db_%:
 	docker run -d $(DB_ENV) $(DB_VOL) $(DB_IMG)
-	sleep $(TST_W8DB)
+	$(call dkr_cnt_wait,$(DB_NAME),ready for connections)
+	sleep 5
 	echo "$$SQL_ADD_DATA" | docker exec -i $(DB_NAME) mysql -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
-
 
 test-conf_%:
 	${eval tst_ad := ${shell case $* in \
