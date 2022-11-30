@@ -360,6 +360,7 @@ test-up-auth_%:
 
 test-up-db_%:
 	docker run -d $(DB_ENV) $(DB_VOL) $(DB_IMG)
+	$(call dkr_cnt_timeout,180,$(DB_NAME))
 	$(call dkr_cnt_wait,$(DB_NAME),ready for connections)
 	sleep 5
 	echo "$$SQL_ADD_DATA" | docker exec -i $(DB_NAME) mysql -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
