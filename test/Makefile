@@ -148,7 +148,7 @@ GREP_ENV ?=
 
 TST_W8S1 ?= 1
 TST_W8AU ?= 3
-TST_W8DB ?= 180
+TST_W8DB ?= 5
 TST_W8S2 ?= 80
 TST_W8L1 ?= 20
 TST_W8L2 ?= 120
@@ -360,15 +360,8 @@ test-up-auth_%:
 
 test-up-db_%:
 	docker run -d $(DB_ENV) $(DB_VOL) $(DB_IMG)
-	docker images
-	docker ps -a
-	$(call dkr_cnt_wait_run,$(DB_NAME),180)
 	$(call dkr_cnt_wait_log,$(DB_NAME),ready for connections)
-	sleep 5
-	docker volume ls
-	docker network ls
-	docker ps -a
-	docker logs $(DB_NAME)
+	sleep $(TST_W8DB)
 	echo "$$SQL_ADD_DATA" | docker exec -i $(DB_NAME) mysql -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
 
 test-conf_%:
