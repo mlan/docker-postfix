@@ -354,16 +354,21 @@ test-down_%:
 
 test-up-auth_%:
 	docker run -d $(AUT_ENV) $(AUT_VOL) $(AUT_IMG)
-	$(call dkr_cnt_wait,$(AUT_NAME),OpenLDAP)
+	$(call dkr_cnt_wait_log,$(AUT_NAME),OpenLDAP)
 	sleep $(TST_W8AU)
 	echo "$$LDIF_ADD_DATA" | docker exec -i $(AUT_NAME) ldapadd -Q
 
 test-up-db_%:
-	$(call dkr_pull_missing,$(DB_IMG))
 	docker run -d $(DB_ENV) $(DB_VOL) $(DB_IMG)
-	$(call dkr_cnt_timeout,180,$(DB_NAME))
-	$(call dkr_cnt_wait,$(DB_NAME),ready for connections)
+	docker images
+	docker ps -a
+	$(call dkr_cnt_wait_run,$(DB_NAME),180)
+	$(call dkr_cnt_wait_log,$(DB_NAME),ready for connections)
 	sleep 5
+	docker volume ls
+	docker network ls
+	docker ps -a
+	docker logs $(DB_NAME)
 	echo "$$SQL_ADD_DATA" | docker exec -i $(DB_NAME) mysql -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
 
 test-conf_%:

@@ -29,24 +29,24 @@ dkr_cnt_pid  = $(shell docker inspect --format '{{.State.Pid}}' $(1))
 #	$(1) | head -n1)
 
 #
-# $(call dkr_cnt_state,demo-app-1) -> running
+# $(call dkr_cnt_state,demo-app-1) -> docker inspect -f '{{.State.Status}}' demo-app-1
 #
 dkr_cnt_state = docker inspect -f '{{.State.Status}}' $(1)
 
 #
-# $(call dkr_cnt_timeout,180,demo-app-1) -> wait up to 180s for demo-app-1 to enter state running
+# $(call dkr_cnt_wait_run,test-db,180) -> i=0; time while ! [ "$(docker inspect -f '{{.State.Status}}'  test-db)" = "running" ]; do sleep 1; i=$((i+1)); if [[ $i > 180 ]]; then echo test-db timeout with state: $(docker inspect -f '{{.State.Status}}'  test-db); break; fi; done
 #
-dkr_cnt_timeout = for i in {1..$(1)}; do sleep 1; if [ "$$($(call dkr_cnt_state, $(2)))" = "running" ]; then echo $(2) running in $${i}s; break; fi; done
+dkr_cnt_wait_run = i=0; time while ! [ "$$($(call dkr_cnt_state, $(1)))" = "running" ]; do sleep 1; i=$$((i+1)); if [[ $$i > $(2) ]]; then echo $(1) timeout with state: $$($(call dkr_cnt_state, $(1))); break; fi; done
 
 #
-# $(call dkr_srv_timeout,180,app) -> wait up to 180s for app to enter state running
+# $(call dkr_srv_wait_run,180,app) -> wait up to 180s for app to enter state running
 #
-dkr_srv_timeout = $(call dkr_cnt_timeout,$(1),$(call dkr_srv_cnt $(2)))
+dkr_srv_wait_run = $(call dkr_cnt_wait_run,$(call dkr_srv_cnt $(1)),$(2))
 
 #
-# $(call dkr_cnt_wait,app,ready for connections) -> time docker logs -f app | sed -n '/ready for connections/{p;q}'
+# $(call dkr_cnt_wait_log,app,ready for connections) -> time docker logs -f app | sed -n '/ready for connections/{p;q}'
 #
-dkr_cnt_wait = time docker logs -f $(1) 2>&1 | sed -n '/$(2)/{p;q}'
+dkr_cnt_wait_log = time docker logs -f $(1) 2>&1 | sed -n '/$(2)/{p;q}'
 
 #
 # $(call dkr_pull_missing,mariadb:latest) -> if ! docker image inspect mariadb:latest &>/dev/null; then docker pull mariadb:latest; fi
