@@ -109,6 +109,9 @@ dovecot_setup_master() {
 		}
 		}
 	!cat
+	cat <<-!cat > $DOVECOT_CD/10-auth.conf
+		auth_mechanisms = plain login
+	!cat
 }
 
 #

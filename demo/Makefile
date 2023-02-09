@@ -320,7 +320,7 @@ mta-test_regexp:
 
 mta-test_smtps:
 	$(call smtp_mail,smtps://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),A secure SMTPS test message.) \
-	-k -u $(AD_USR_CN):$(AD_USR_PW)
+	-k --login-option "AUTH=LOGIN" -u $(AD_USR_CN):$(AD_USR_PW)
 
 mta-test_shared: all-test_quiet
 	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_SHR_CN)@$(MAIL_DOMAIN),A shared SMTP test message.)
