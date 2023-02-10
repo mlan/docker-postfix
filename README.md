@@ -1,6 +1,6 @@
 # The `mlan/postfix` repository
 
-![travis-ci test](https://img.shields.io/travis/com/mlan/docker-postfix.svg?label=build&style=flat-square&logo=travis)
+![github action ci](https://img.shields.io/github/actions/workflow/status/mlan/docker-postfix/testimage.yml?label=build&style=flat-square&logo=github)
 ![docker version](https://img.shields.io/docker/v/mlan/postfix?logo=docker&style=flat-square)
 ![image size](https://img.shields.io/docker/image-size/mlan/postfix/latest.svg?label=size&style=flat-square&logo=docker)
 ![docker pulls](https://img.shields.io/docker/pulls/mlan/postfix.svg?label=pulls&style=flat-square&logo=docker)

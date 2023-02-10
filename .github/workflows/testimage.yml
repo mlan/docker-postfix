@@ -13,12 +13,12 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Install dependencies
-      run: sudo apt-get install -y ldap-utils openssl jq
+      run: sudo apt-get install -y ldap-utils
 
     - name: Build docker images
       run: make build-all
 
-    - name: Run testa
+    - name: Run tests
       shell: 'script -q -e -c "bash {0}"'
       run: |
         make test-all
