@@ -1,5 +1,6 @@
 # 1.0.0
 
+- [github](.github/workflows/testimage.yml) Now use GitHub Actions to test image.
 - [demo](demo/Makefile) Now depend on the `docker-compose-plugin`.
 - [demo](demo/Makefile) Fix the broken `-diff` target.
 - [dovecot](src/dovecot/entry.d/10-dovecot-common) Now support both PLAIN and the legacy LOGIN authentication (SASL) mechanisms.
