@@ -1,5 +1,7 @@
 # 1.0.0
 
+- [demo](demo/Makefile) Now depend on the `docker-compose-plugin`.
+- [demo](demo/Makefile) Fix the broken `-diff` target.
 - [dovecot](src/dovecot/entry.d/10-dovecot-common) Now support both PLAIN and the legacy LOGIN authentication (SASL) mechanisms.
 - [docker](Makefile) Use alpine:3.17 (postfix:3.7.4 dovecot:2.3.20).
 - [repo](.) Based on [mlan/postfix-amavis](https://github.com/mlan/docker-postfix).

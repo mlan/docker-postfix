@@ -52,59 +52,59 @@ init: up auth-init db-init mta-init app-init
 #init: up auth-init db-init app-restart mta-init wait_99 app-init
 
 ps:
-	docker-compose ps
+	docker compose ps
 
 up:
-	docker-compose up -d
+	docker compose up -d
 
 down:
-	docker-compose down
+	docker compose down
 
 destroy: auth-web-down db-web-down all-destroy_smime
-	docker-compose down -v
+	docker compose down -v
 
 config:
-	docker-compose config
+	docker compose config
 
 logs:
-	docker-compose logs --tail 10
+	docker compose logs --tail 10
 
 images:
-	docker-compose images
+	docker compose images
 
 $(addsuffix -up,$(SRV_LIST)):
-	docker-compose up -d $(patsubst %-up,%,$@)
+	docker compose up -d $(patsubst %-up,%,$@)
 
 $(addsuffix -down,$(SRV_LIST)):
-	docker-compose rm -sf $(patsubst %-down,%,$@)
+	docker compose rm -sf $(patsubst %-down,%,$@)
 
 $(addsuffix -restart,$(SRV_LIST)):
-	docker-compose restart $(patsubst %-restart,%,$@)
+	docker compose restart $(patsubst %-restart,%,$@)
 
 $(addsuffix -renew,$(SRV_LIST)):
-	docker-compose rm -s $(patsubst %-renew,%,$@)
-	docker-compose up -d $(patsubst %-renew,%,$@)
+	docker compose rm -s $(patsubst %-renew,%,$@)
+	docker compose up -d $(patsubst %-renew,%,$@)
 
 $(addsuffix -top,$(SRV_LIST)):
-	docker-compose top $(patsubst %-top,%,$@)
+	docker compose top $(patsubst %-top,%,$@)
 
 $(addsuffix -logs,$(SRV_LIST)):
-	docker-compose logs $(patsubst %-logs,%,$@)
+	docker compose logs $(patsubst %-logs,%,$@)
 
 $(addsuffix -pull,$(SRV_LIST)):
-	docker-compose pull $(patsubst %-pull,%,$@)
+	docker compose pull $(patsubst %-pull,%,$@)
 
 $(addsuffix -sh,$(SRV_LIST)):
-	docker-compose exec $(patsubst %-sh,%,$@) sh -c 'exec $$(getent passwd root | sed "s/.*://g")'
+	docker compose exec $(patsubst %-sh,%,$@) sh -c 'exec $$(getent passwd root | sed "s/.*://g")'
 
 $(addsuffix -env,$(SRV_LIST)):
-	docker-compose exec $(patsubst %-env,%,$@) env
+	docker compose exec $(patsubst %-env,%,$@) env
 
 $(addsuffix -sv,$(SRV_LIST)):
-	docker-compose exec $(patsubst %-sv,%,$@) sh -c 'sv status $$SVDIR/*'
+	docker compose exec $(patsubst %-sv,%,$@) sh -c 'sv status $$SVDIR/*'
 
 $(addsuffix -diff,$(SRV_LIST)):
-	docker container diff $(COMPOSE_PROJECT_NAME)_$(patsubst %-diff,%,$@)_1
+	docker container diff $(call dkr_srv_cnt,$(patsubst %-diff,%,$@))
 
 $(addsuffix -hostaddr,$(SRV_LIST)):
 	$(eval myhost := $(call dkr_srv_ip,$(patsubst %-hostaddr,%,$@)))
@@ -263,28 +263,28 @@ utils-default:
 	rm -f utils-container.mk
 
 auth-mod_conf:
-	echo "$$LDIF_MOD_CONF" | docker-compose exec -T auth ldapmodify -Q
+	echo "$$LDIF_MOD_CONF" | docker compose exec -T auth ldapmodify -Q
 
 auth-add_data:
-	echo "$$LDIF_ADD_DATA" | docker-compose exec -T auth ldapadd -Q
+	echo "$$LDIF_ADD_DATA" | docker compose exec -T auth ldapadd -Q
 
 auth-add_schema:
-	docker-compose exec app zcat /usr/share/doc/kopano/kopano.ldif.gz \
-	| docker-compose exec -T auth ldapadd -Q
+	docker compose exec app zcat /usr/share/doc/kopano/kopano.ldif.gz \
+	| docker compose exec -T auth ldapadd -Q
 
 auth-show_conf:
-	docker-compose exec auth ldapsearch -QLLLb cn=config "(cn=config)"
-	docker-compose exec auth ldapsearch -QLLLb cn=config olcDatabase={-1}frontend
-	docker-compose exec auth ldapsearch -QLLLb cn=config olcDatabase={1}mdb
+	docker compose exec auth ldapsearch -QLLLb cn=config "(cn=config)"
+	docker compose exec auth ldapsearch -QLLLb cn=config olcDatabase={-1}frontend
+	docker compose exec auth ldapsearch -QLLLb cn=config olcDatabase={1}mdb
 
 auth-show_data:
-	docker-compose exec auth ldapsearch -QLLL
+	docker compose exec auth ldapsearch -QLLL
 
 auth-show_cat0:
-	docker-compose exec auth slapcat -n0
+	docker compose exec auth slapcat -n0
 
 auth-show_cat1:
-	docker-compose exec auth slapcat -n1
+	docker compose exec auth slapcat -n1
 
 auth-web: auth-web-up
 	sleep 2
@@ -301,7 +301,7 @@ auth-web-down:
 mta-init:
 
 mta-edh:
-	docker-compose exec mta run postfix_update_dhparam
+	docker compose exec mta run postfix_update_dhparam
 
 mta-test_smtp:
 	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(PLAIN_SUBJ))
@@ -329,60 +329,60 @@ mta-test_public: all-test_quiet
 	$(call smtp_mail,smtp://$(MTA_FQDN),$(MAIL_FROM),$(AD_PUB_CN)@$(MAIL_DOMAIN),A public SMTP test message.)
 
 mta-tools:
-	docker-compose exec mta apk --no-cache --update add \
+	docker compose exec mta apk --no-cache --update add \
 	nano less lsof htop openldap-clients bind-tools iputils strace iproute2
 
 mta-apk_list:
-	docker-compose exec mta /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
+	docker compose exec mta /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
 
 mta-htop: mta-tools
-	docker-compose exec mta htop
+	docker compose exec mta htop
 
 mta-encrypt:
 	$(eval secret := $(shell whiptail --backtitle "doveadm pw" --title "encrypt password" --inputbox "password" 8 78 secret 3>&1 1>&2 2>&3))
-	docker-compose exec mta doveadm pw -p $(secret)
+	docker compose exec mta doveadm pw -p $(secret)
 
 mta-show_doveconf:
-	docker-compose exec mta doveconf -n
+	docker compose exec mta doveconf -n
 
 mta-show_postconf:
-	docker-compose exec mta postconf -n
+	docker compose exec mta postconf -n
 
 mta-show_mailq:
-	docker-compose exec mta mailq
+	docker compose exec mta mailq
 
 mta-flush_mailq:
-	docker-compose exec mta postqueue -f
+	docker compose exec mta postqueue -f
 
 mta-test_auth:
-	docker-compose exec mta doveadm auth test $(AD_USR_CN) $(AD_USR_PW)
+	docker compose exec mta doveadm auth test $(AD_USR_CN) $(AD_USR_PW)
 
 mta-man:
-	docker-compose exec mta apk --no-cache --update add \
+	docker compose exec mta apk --no-cache --update add \
 	man-db man-pages apk-tools-doc postfix-doc cyrus-sasl-doc dovecot-doc
 
 flt-init:
-	docker-compose exec flt sh -c 'rspamadm configwizard; sv restart rspamd'
+	docker compose exec flt sh -c 'rspamadm configwizard; sv restart rspamd'
 
 flt-clamdtop:
-	docker-compose exec flt clamdtop
+	docker compose exec flt clamdtop
 
 flt-reload:
-	docker-compose exec flt /bin/sh -c 'echo RELOAD | nc localhost 3310'
+	docker compose exec flt /bin/sh -c 'echo RELOAD | nc localhost 3310'
 
 flt-ping:
-	docker-compose exec flt /bin/sh -c 'echo PING | nc localhost 3310'
+	docker compose exec flt /bin/sh -c 'echo PING | nc localhost 3310'
 
 flt-tools:
-	docker-compose exec flt apk --no-cache --update add \
+	docker compose exec flt apk --no-cache --update add \
 	nano less lsof htop openldap-clients bind-tools iputils strace iproute2 curl
 
 flt-man:
-	docker-compose exec flt apk --no-cache --update add \
+	docker compose exec flt apk --no-cache --update add \
 	man-db man-pages apk-tools-doc clamav-doc rspamd-doc
 
 flt-apk_list:
-	docker-compose exec flt /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
+	docker compose exec flt /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
 
 flt-web:
 	$(call webb_cmd,http://$(FLT_FQDN))
@@ -391,38 +391,38 @@ flt-test: flt-test_plain flt-test_gtube flt-test_eicar
 
 flt-test_plain:
 	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(PLAIN_SUBJ)) \
-	| docker-compose exec -T flt rspamc --hostname localhost
+	| docker compose exec -T flt rspamc --hostname localhost
 
 flt-test_gtube:
 	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(GTUBE_SUBJ),$(GTUBE_MESS)) \
-	| docker-compose exec -T flt rspamc --hostname localhost
+	| docker compose exec -T flt rspamc --hostname localhost
 
 flt-test_eicar:
 	$(call head_mail,$(MAIL_FROM),$(AD_USR_CN)@$(MAIL_DOMAIN),$(EICAR_SUBJ),$(EICAR_MESS),$(EICAR_TYPE)) \
-	| docker-compose exec -T flt rspamc --hostname localhost
+	| docker compose exec -T flt rspamc --hostname localhost
 
 flt-passwd:
-	docker-compose exec flt rspamadm pw
+	docker compose exec flt rspamadm pw
 
 flt-bayes_init:
-	docker-compose exec flt sh -c 'mkdir -p /tmp/ham && wget --no-check-certificate -O - $(HAM_URL)  | tar -xzC /tmp/ham && rspamc learn_ham /tmp/ham'
-	docker-compose exec flt sh -c 'mkdir -p /tmp/spam && wget --no-check-certificate -O - $(SPAM_URL) | tar -xzC /tmp/spam && rspamc learn_spam /tmp/spam'
+	docker compose exec flt sh -c 'mkdir -p /tmp/ham && wget --no-check-certificate -O - $(HAM_URL)  | tar -xzC /tmp/ham && rspamc learn_ham /tmp/ham'
+	docker compose exec flt sh -c 'mkdir -p /tmp/spam && wget --no-check-certificate -O - $(SPAM_URL) | tar -xzC /tmp/spam && rspamc learn_spam /tmp/spam'
 
 flt-stat:
-	docker-compose exec flt rspamc stat
+	docker compose exec flt rspamc stat
 
 flt-config:
-	docker-compose exec flt rspamadm configdump
+	docker compose exec flt rspamadm configdump
 
 flt-config_%:
-	docker-compose exec flt rspamadm configdump $*
+	docker compose exec flt rspamadm configdump $*
 
 $(addprefix flt-config_,actions antivirus classifier dkim dkim_signing greylist group.statistics logging metric milter_headers options redis worker):
 
 db-init:
 
 db-test:
-	docker-compose exec db mysqlshow -u $(MYSQL_USER) $(MYSQL_DATABASE) -p$(MYSQL_PASSWORD)
+	docker compose exec db mysqlshow -u $(MYSQL_USER) $(MYSQL_DATABASE) -p$(MYSQL_PASSWORD)
 
 db-web: db-web-up
 	sleep 2
@@ -441,18 +441,18 @@ app-wait:
 	#
 	# Waiting for kopano-server to initialize.
 	#
-	time docker-compose logs -f app | sed -n '/Startup succeeded/{p;q}'
+	time docker compose logs -f app | sed -n '/Startup succeeded/{p;q}'
 	#
 	# kopano-server ready.
 	#
 
 app-tools:
-	docker-compose exec app apt update
-	docker-compose exec app apt install --yes \
+	docker compose exec app apt update
+	docker compose exec app apt install --yes \
 	less nano ldap-utils htop net-tools lsof iputils-ping dnsutils strace
 
 app-htop: app-tools
-	docker-compose exec app htop
+	docker compose exec app htop
 
 app-test_smtp: mta-test_smtp
 
@@ -483,42 +483,42 @@ app-test_tls:
 	$(TSSL_CMD) $(APP_FQDN):993 || true
 
 app-test_oof1:
-	docker-compose exec app kopano-oof -u $(AD_USR_CN) -m 1 -t "Dunno when I return"
+	docker compose exec app kopano-oof -u $(AD_USR_CN) -m 1 -t "Dunno when I return"
 
 app-test_oof0:
-	docker-compose exec app kopano-oof -u $(AD_USR_CN) -m 0
+	docker compose exec app kopano-oof -u $(AD_USR_CN) -m 0
 
 app-stats_server:
-	docker-compose exec app kopano-stats --system
+	docker compose exec app kopano-stats --system
 
 app-show_server:
-	docker-compose exec app kopano-stats --top
+	docker compose exec app kopano-stats --top
 
 app-show_user1:
-	docker-compose exec app kopano-admin --details $(AD_USR_CN)
+	docker compose exec app kopano-admin --details $(AD_USR_CN)
 
 app-show_user2: app-tools
-	docker-compose exec app ldapsearch -H ldap://auth:389 -xLLL -b $(AD_BASE) '*'
+	docker compose exec app ldapsearch -H ldap://auth:389 -xLLL -b $(AD_BASE) '*'
 
 app-show_sync:
-	docker-compose exec app z-push-top
+	docker compose exec app z-push-top
 
 app-create_store:
-	docker-compose exec app kopano-admin --create-store $(AD_USR_CN)
+	docker compose exec app kopano-admin --create-store $(AD_USR_CN)
 
 app-public_store:
-	docker-compose exec app kopano-storeadm -P
+	docker compose exec app kopano-storeadm -P
 
 #app-add_user:
-#	docker-compose exec app kopano-admin -c $(AD_USR_CN) -p $(AD_USR_PW) \
+#	docker compose exec app kopano-admin -c $(AD_USR_CN) -p $(AD_USR_PW) \
 #	-e $(AD_USR_CN)@$(MAIL_DOMAIN) -f $(AD_USR_CN) -a 1
 
 $(addprefix app-parms_,archiver dagent gateway ical ldap search server spamd spooler):
-	docker-compose exec app run list_parms $(patsubst app-parms_%,%,$@)
+	docker compose exec app run list_parms $(patsubst app-parms_%,%,$@)
 
 app-create_smime: all-create_smime
 	docker cp ssl/ca.crt $(call dkr_srv_cnt,app):/usr/local/share/ca-certificates/$(MAIL_DOMAIN)_CA.crt
-	docker-compose exec app update-ca-certificates
+	docker compose exec app update-ca-certificates
 
 app-web:
 	$(call webb_cmd,http://$(APP_FQDN))
