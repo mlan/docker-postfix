@@ -1,3 +1,9 @@
+# 1.0.1
+
+- [docker](Makefile) Use alpine:3.18 (postfix:3.8.1 dovecot:2.3.20).
+- [test](test/Makefile) Now use the `mariadb` instead of `mysql` command in MariaDB image.
+- [test](demo/Makefile) Now use the `mariadb-show` instead of `mysqlshow` command in MariaDB image.
+
 # 1.0.0
 
 - [docker](Makefile) Use alpine:3.18 (postfix:3.8.0 dovecot:2.3.20).

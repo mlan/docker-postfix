@@ -422,7 +422,7 @@ $(addprefix flt-config_,actions antivirus classifier dkim dkim_signing greylist 
 db-init:
 
 db-test:
-	docker compose exec db mysqlshow -u $(MYSQL_USER) $(MYSQL_DATABASE) -p$(MYSQL_PASSWORD)
+	docker compose exec db mariadb-show -u $(MYSQL_USER) $(MYSQL_DATABASE) -p$(MYSQL_PASSWORD)
 
 db-web: db-web-up
 	sleep 2

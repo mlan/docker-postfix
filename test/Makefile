@@ -270,7 +270,7 @@ test-up_3: test-up-net test-up-db_3 acme/acme.json
 	#
 	#
 	#
-	# test (3) basic mta function and mysql lookup and imap
+	# test (3) basic mta function and sql lookup and imap
 	#
 	# send: curl smtp://clt -> clt smtp://srv -> srv dovecot mbox
 	# recv: imaps://srv/inbox
@@ -362,7 +362,7 @@ test-up-db_%:
 	docker run -d $(DB_ENV) $(DB_VOL) $(DB_IMG)
 	$(call dkr_cnt_wait_log,$(DB_NAME),ready for connections)
 	sleep $(TST_W8DB)
-	echo "$$SQL_ADD_DATA" | docker exec -i $(DB_NAME) mysql -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
+	echo "$$SQL_ADD_DATA" | docker exec -i $(DB_NAME) mariadb -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
 
 test-conf_%:
 	${eval tst_ad := ${shell case $* in \
@@ -446,11 +446,11 @@ auth-test:
 
 db-table:
 	echo "select * from $(SQL_TAB)" | \
-	docker exec -i $(DB_NAME) mysql -t -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
+	docker exec -i $(DB_NAME) mariadb -t -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
 
 db-auth:
 	echo "select password, userid as user from $(SQL_TAB) where userid = \"$(AD_MX_CN)\"" | \
-	docker exec -i $(DB_NAME) mysql -t -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
+	docker exec -i $(DB_NAME) mariadb -t -u$(SQL_BD_CN) -p$(SQL_BD_PW) $(SQL_DB)
 
 $(addprefix test-tls_,25 465 587):
 test-tls_%:
