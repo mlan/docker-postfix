@@ -325,6 +325,10 @@ A method is activated when its required variables has been defined. For LDAP, `L
 
 Additionally clients are required to authenticate using TLS to avoid password being sent in the clear. The configuration of the services are the similar with the exception that the SMTPS service uses the legacy SMTPS protocol; `SMTPD_TLS_WRAPPERMODE=yes`, whereas the submission service uses the STARTTLS protocol.
 
+### Authentication (SASL) Mechanisms
+
+There are unavoidable limitations with [non-plaintext authentication mechanisms](https://doc.dovecot.org/configuration_manual/authentication/password_schemes/#non-plaintext-authentication-mechanisms) and password storage schemes. If more than one non-plaintext authentication mechanism, e.g. CRAM-MD5, are enabled then the passwords must be stored in plain text.
+
 ### Password file SASL client authentication `SMTPD_SASL_CLIENTAUTH`
 
 You can list clients and their passwords in a space separated string using the format: `"username:{scheme}passwd"`. Example: `SMTPD_SASL_CLIENTAUTH="client1:{plain}passwd1 client2:{plain}passwd2"`. For security you might want to use encrypted passwords. One way to encrypt a password (`{plain}secret`) is by running

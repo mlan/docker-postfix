@@ -29,6 +29,12 @@ dkr_cnt_pid  = $(shell docker inspect --format '{{.State.Pid}}' $(1))
 #	$(1) | head -n1)
 
 #
+# $(call dkr_img_env,image,envvar) -> value
+#
+dkr_img_env  = $(shell docker inspect -f \
+	'{{range .Config.Env}}{{println .}}{{end}}' $(1) | grep -P "^$(2)=" | sed 's/[^=]*=//'
+
+#
 # $(call dkr_cnt_state,demo-app-1) -> docker inspect -f '{{.State.Status}}' demo-app-1
 #
 dkr_cnt_state = docker inspect -f '{{.State.Status}}' $(1)

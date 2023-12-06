@@ -1,3 +1,9 @@
+# 1.0.2
+
+- [docker](Makefile) Use alpine:3.18 (postfix:3.8.3 dovecot:2.3.20).
+- [docker](src/docker) Improve debug message in [docker-service.sh](src/docker/bin/docker-service.sh).
+- [repo](README.md) Added section on Authentication (SASL) Mechanisms.
+
 # 1.0.1
 
 - [docker](Makefile) Use alpine:3.18 (postfix:3.8.1 dovecot:2.3.20).
