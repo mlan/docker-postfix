@@ -1,3 +1,7 @@
+# 1.0.3
+
+- [docker](Makefile) Use alpine:3.19 (postfix:3.8.3 dovecot:2.3.21).
+
 # 1.0.2
 
 - [docker](Makefile) Use alpine:3.18 (postfix:3.8.3 dovecot:2.3.20).
