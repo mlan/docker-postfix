@@ -60,7 +60,7 @@ One convenient way to test the image is to clone the [github](https://github.com
 An example of how to configure an web mail server using docker compose is given below. It defines 5 services, `app`, `mta`, `filt`, `db` and `auth`, which are the web mail server, the mail transfer agent, the SQL database and LDAP authentication respectively.
 
 ```yaml
-version: '3'
+name: demo
 
 services:
   app:

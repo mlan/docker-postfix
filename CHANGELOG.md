@@ -1,3 +1,8 @@
+# 1.0.4
+
+- [docker](Makefile) Use alpine:3.19 (postfix:3.8.6 dovecot:2.3.21).
+- [demo](demo/docker-compose.yml) Remove obsolete element `version` in docker-compose.yml.
+
 # 1.0.3
 
 - [docker](Makefile) Use alpine:3.19 (postfix:3.8.3 dovecot:2.3.21).
