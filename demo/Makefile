@@ -103,6 +103,9 @@ $(addsuffix -env,$(SRV_LIST)):
 $(addsuffix -sv,$(SRV_LIST)):
 	docker compose exec $(patsubst %-sv,%,$@) sh -c 'sv status $$SVDIR/*'
 
+$(addsuffix -apk_list,$(SRV_LIST)):
+	docker compose exec $(patsubst %-apk_list,%,$@) sh -c 'apk info -sq $$(apk info -q) | sed -r "N;N;s/([^ ]+) installed size:\n([^ ]+) (.).*/\2\3\t\1/" | sort -h'
+
 $(addsuffix -diff,$(SRV_LIST)):
 	docker container diff $(call dkr_srv_cnt,$(patsubst %-diff,%,$@))
 
@@ -332,9 +335,6 @@ mta-tools:
 	docker compose exec mta apk --no-cache --update add \
 	nano less lsof htop openldap-clients bind-tools iputils strace iproute2
 
-mta-apk_list:
-	docker compose exec mta /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
-
 mta-htop: mta-tools
 	docker compose exec mta htop
 
@@ -380,9 +380,6 @@ flt-tools:
 flt-man:
 	docker compose exec flt apk --no-cache --update add \
 	man-db man-pages apk-tools-doc clamav-doc rspamd-doc
-
-flt-apk_list:
-	docker compose exec flt /bin/sh -c 'for pkg in $$(apk info 2>/dev/null); do printf "%9s %3s %s\n" $$(apk info -s $$pkg 2>/dev/null | sed -n "2{p;q}") $$pkg; done | sort | sort -k 2,2'
 
 flt-web:
 	$(call webb_cmd,http://$(FLT_FQDN))
