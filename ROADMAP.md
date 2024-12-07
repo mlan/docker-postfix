@@ -1,5 +1,21 @@
 # Road map
 
+## Postfix configuration
+### TLS Forward Secrecy
+
+The built-in default Postfix FFDHE group is a 2048-bit group as of Postfix 3.1. You can optionally generate non-default Postfix SMTP server FFDHE parameters for possibly improved security against pre-computation attacks, but this is not necessary or recommended. Just leave "smtpd_tls_dh1024_param_file" at its default empty value. [TLS Forward Secrecy in Postfix](https://www.postfix.org/FORWARD_SECRECY_README.html)
+
+```sh
+/etc/postfix/main.cf: support for parameter "smtpd_tls_dh1024_param_file" will be removed; instead, do not specify (leave at default)
+```
+### Enable TLS
+
+Dont use `smtpd_use_tls` anymore. `smtpd_tls_security_level=may` is sufficient.
+
+```sh
+/etc/postfix/main.cf: support for parameter "smtpd_use_tls" will be removed; instead, specify "smtpd_tls_security_level"
+```
+
 ## PostSRSd
 
 Arrange optional configuration of the [PostSRSd](https://github.com/roehling/postsrsd) Sender Rewriting Scheme (SRS) via TCP-based lookup tables for Postfix.

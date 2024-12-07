@@ -313,7 +313,7 @@ postfix_activate_tls_cert() {
 	if ([ -n "$SMTPD_TLS_CERT_FILE" ] || [ -n "$SMTPD_TLS_ECCERT_FILE" ] || \
 		[ -n "$SMTPD_TLS_DCERT_FILE" ] || [ -n "$SMTPD_TLS_CHAIN_FILES" ]); then
 		dc_log 5 "[postfix] Activating incoming tls."
-		postconf -e smtpd_use_tls=yes
+		# postconf -e smtpd_use_tls=yes # use only smtpd_tls_security_level
 		postconf -e smtpd_tls_security_level=may
 		postconf -e smtpd_tls_auth_only=yes
 	fi

@@ -1,6 +1,10 @@
+# 1.0.6
+
+- [docker](Makefile) Use alpine:3.21 (postfix:3.9.1 dovecot:2.3.21.1).
+
 # 1.0.5
 
-- [docker](Makefile) Use alpine:3.20 (postfix:3.9.0 dovecot:2.3.21).
+- [docker](Makefile) Use alpine:3.20 (postfix:3.9.0 dovecot:2.3.21.1).
 - [github](.github/workflows/testimage.yml) Now use Node.js 20 `actions/checkout@v4`.
 - [demo](demo) Fixed target `*-apk_list`.
 
